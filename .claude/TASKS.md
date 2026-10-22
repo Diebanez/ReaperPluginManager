@@ -226,7 +226,7 @@ Feature: plugin-installation
 
 ## 23. Windows helper core: elevation, download, verify, exe/msi
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.ps1
 Preconditions: 20

@@ -1,0 +1,289 @@
+# rpm-install.ps1: Windows install helper of ReaperPluginManager.
+# Reads the job file, elevates once, then downloads, verifies and installs
+# each plugin, appending every step to the status file. Targets Windows
+# PowerShell 5.1; ASCII-only.
+#
+#   -JobFile <file>     job.tsv: id name type url sha256 args dest, tab-separated
+#   -StatusFile <file>  appended: START <n>, ITEM <id> download|verify|install,
+#                       OK <id>, FAIL <id> <message>, DONE <ok> <failed>
+#   -WorkDir <dir>      downloads go to <dir>\<id>
+#   -NetrcFile <file>   curl credentials file; deleted when the run ends
+#   -Tls required|try|off (default required)   -Insecure
+#   -Vst3Dir <dir>      default %CommonProgramFiles%\VST3
+#   -Vst2Dir <dir>      default the settings' [install] vst2_dir
+#   -ClapDir <dir>      default %CommonProgramFiles%\CLAP
+#   -NoElevate          do not relaunch as administrator (development use)
+#
+# No parameter is mandatory, so a missing one never prompts in a hidden
+# window. Every failure is one FAIL line and stops only its plugin; the run
+# always ends with DONE and deletes the credentials file.
+
+param(
+  [string]$JobFile,
+  [string]$StatusFile,
+  [string]$WorkDir,
+  [string]$NetrcFile,
+  [string]$Tls = 'required',
+  [switch]$Insecure,
+  [string]$Vst3Dir,
+  [string]$Vst2Dir,
+  [string]$ClapDir,
+  [switch]$NoElevate
+)
+
+$ErrorActionPreference = 'Stop'
+
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+$ConnectTimeout = 30
+$StallTimeout = 60
+$SuccessCodes = @(0, 3010)
+
+function Write-Status([string]$line) {
+  [IO.File]::AppendAllText($StatusFile, $line + "`n", $Utf8NoBom)
+}
+
+function ConvertTo-OneLine([string]$text) {
+  $t = ($text -replace '[\r\n]+', ' ').Trim()
+  if (-not $t) { $t = 'unknown error' }
+  return $t
+}
+
+function Remove-Credentials {
+  if ($NetrcFile -and [IO.File]::Exists($NetrcFile)) {
+    try { [IO.File]::Delete($NetrcFile) } catch { }
+  }
+}
+
+# A command-line argument in double quotes; backslashes before the closing
+# quote are doubled so they do not escape it.
+function ConvertTo-Argument([string]$value) {
+  if ($value -match '\\+$') { $value = $value + $matches[0] }
+  return '"' + $value + '"'
+}
+
+# The value of `key` in `section` of the settings file at `path`, or '' when
+# the file or the key is missing. Comments start with ; or # at the start of
+# a line or after whitespace.
+function Get-SettingsValue([string]$path, [string]$section, [string]$key) {
+  if (-not $path -or -not [IO.File]::Exists($path)) { return '' }
+  $current = ''
+  foreach ($raw in [IO.File]::ReadAllLines($path, [Text.Encoding]::UTF8)) {
+    $line = ($raw -replace '(^|\s)[;#].*$', '').Trim()
+    if ($line -match '^\[(.*)\]$') {
+      $current = $matches[1].Trim()
+    } elseif ($current -eq $section -and $line -match '^([^=]*)=(.*)$' -and $matches[1].Trim() -eq $key) {
+      return $matches[2].Trim()
+    }
+  }
+  return ''
+}
+
+# The job entries, one per non-empty line with an id.
+function Read-Job([string]$path) {
+  $text = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
+  foreach ($raw in ($text -split "`n")) {
+    $line = $raw.TrimEnd("`r")
+    if (-not $line.Trim()) { continue }
+    $f = @($line.Split("`t")) + @('', '', '', '', '', '', '')
+    $id = $f[0].Trim()
+    if (-not $id) { continue }
+    New-Object PSObject -Property @{
+      Id     = $id
+      Name   = $f[1].Trim()
+      Type   = $f[2].Trim().ToLowerInvariant()
+      Url    = $f[3].Trim()
+      Sha256 = $f[4].Trim()
+      Args   = $f[5].Trim()
+      Dest   = $f[6].Trim()
+    }
+  }
+}
+
+function Test-Administrator {
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = New-Object Security.Principal.WindowsPrincipal $identity
+  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Relaunches this script as administrator with every parameter, already
+# resolved, plus -NoElevate so the elevated instance never relaunches again.
+# Throws when the prompt is refused.
+function Start-Elevated {
+  $list = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
+    '-File', (ConvertTo-Argument $PSCommandPath))
+  foreach ($name in 'JobFile', 'StatusFile', 'WorkDir', 'NetrcFile', 'Tls', 'Vst3Dir', 'Vst2Dir', 'ClapDir') {
+    $value = Get-Variable -Name $name -Scope Script -ValueOnly
+    if ($value) { $list += @('-' + $name, (ConvertTo-Argument $value)) }
+  }
+  if ($Insecure) { $list += '-Insecure' }
+  $list += '-NoElevate'
+  $exe = Join-Path $PSHOME 'powershell.exe'
+  Start-Process -FilePath $exe -ArgumentList ($list -join ' ') -Verb RunAs -WindowStyle Hidden | Out-Null
+}
+
+# Downloads the entry's installer into `dir`, named after the decoded last
+# URL segment, and returns its path.
+function Get-Installer($entry, [string]$dir) {
+  $url = $entry.Url
+  if (-not $url) { throw 'download failed: no URL in the job' }
+  $path = $url -replace '[?#].*$', ''
+  $name = [Uri]::UnescapeDataString($path.Substring($path.LastIndexOf('/') + 1))
+  foreach ($c in [IO.Path]::GetInvalidFileNameChars()) { $name = $name.Replace([string]$c, '_') }
+  if (-not $name.Trim('.', ' ')) { $name = 'installer' }
+  $file = Join-Path $dir $name
+
+  $curlArgs = @('--fail', '--silent', '--show-error', '--location', '--ftp-pasv',
+    '--connect-timeout', [string]$ConnectTimeout,
+    '--speed-limit', '1', '--speed-time', [string]$StallTimeout)
+  if ($url -notmatch '^file:') {
+    if ($Tls -eq 'required') { $curlArgs += '--ssl-reqd' }
+    elseif ($Tls -eq 'try') { $curlArgs += '--ssl' }
+    if ($Insecure) { $curlArgs += '--insecure' }
+    if ($NetrcFile) { $curlArgs += @('--netrc-file', $NetrcFile) }
+  }
+  $curlArgs += @('--output', $file, $url)
+
+  # curl's stderr must not turn into a terminating error: relax the error
+  # preference around the call and read the exit code instead.
+  $saved = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $output = & $Curl @curlArgs 2>&1
+    $code = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $saved
+  }
+  if ($code -ne 0) {
+    $text = (@($output) | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() }) -join ' '
+    if (-not $text) { $text = 'curl exit code ' + $code }
+    throw ('download failed: ' + $text)
+  }
+  if (-not [IO.File]::Exists($file)) { throw 'download failed: no file was written' }
+  return $file
+}
+
+# Lowercase hex SHA-256 of `file`, through .NET (Get-FileHash is not relied on).
+function Get-Sha256([string]$file) {
+  $sha = [Security.Cryptography.SHA256]::Create()
+  $stream = [IO.File]::OpenRead($file)
+  try {
+    $hash = $sha.ComputeHash($stream)
+  } finally {
+    $stream.Dispose()
+    $sha.Dispose()
+  }
+  $sb = New-Object System.Text.StringBuilder 64
+  foreach ($b in $hash) { [void]$sb.Append($b.ToString('x2')) }
+  return $sb.ToString()
+}
+
+function Install-Exe($entry, [string]$file, [string]$dir) {
+  $params = @{ FilePath = $file; WorkingDirectory = $dir; Wait = $true; PassThru = $true }
+  if ($entry.Args) { $params.ArgumentList = $entry.Args }
+  $process = Start-Process @params
+  return $process.ExitCode
+}
+
+function Install-Msi($entry, [string]$file) {
+  $list = '/i ' + (ConvertTo-Argument $file) + ' /qn /norestart'
+  if ($entry.Args) { $list += ' ' + $entry.Args }
+  $msiexec = Join-Path $env:SystemRoot 'System32\msiexec.exe'
+  $process = Start-Process -FilePath $msiexec -ArgumentList $list -Wait -PassThru
+  return $process.ExitCode
+}
+
+# Downloads, verifies and installs one entry; throws with the FAIL message.
+function Install-Entry($entry) {
+  if ($entry.Type -ne 'exe' -and $entry.Type -ne 'msi') {
+    throw 'installer type not supported on Windows'
+  }
+  if (-not $WorkDir) { throw 'no work folder given' }
+  $dir = Join-Path $WorkDir $entry.Id
+
+  Write-Status ('ITEM ' + $entry.Id + ' download')
+  if ([IO.Directory]::Exists($dir)) { [IO.Directory]::Delete($dir, $true) }
+  [void][IO.Directory]::CreateDirectory($dir)
+  $file = Get-Installer $entry $dir
+
+  if ($entry.Sha256) {
+    Write-Status ('ITEM ' + $entry.Id + ' verify')
+    $actual = Get-Sha256 $file
+    if (-not [string]::Equals($actual, $entry.Sha256, [StringComparison]::OrdinalIgnoreCase)) {
+      throw 'checksum mismatch'
+    }
+  }
+
+  Write-Status ('ITEM ' + $entry.Id + ' install')
+  switch ($entry.Type) {
+    'exe' { $code = Install-Exe $entry $file $dir }
+    'msi' { $code = Install-Msi $entry $file }
+  }
+  if ($SuccessCodes -notcontains $code) {
+    throw ('installer exited with code ' + $code)
+  }
+
+  try { [IO.Directory]::Delete($dir, $true) } catch { }
+}
+
+# --- Main -----------------------------------------------------------------
+
+if (-not $StatusFile) { exit 1 }
+
+$Tls = $Tls.Trim().ToLowerInvariant()
+if (@('required', 'try', 'off') -notcontains $Tls) { $Tls = 'required' }
+
+$common = $env:CommonProgramW6432
+if (-not $common) { $common = $env:CommonProgramFiles }
+if (-not $Vst3Dir) { $Vst3Dir = Join-Path $common 'VST3' }
+if (-not $ClapDir) { $ClapDir = Join-Path $common 'CLAP' }
+if (-not $Vst2Dir -and $JobFile) {
+  try {
+    $settingsFile = Join-Path ([IO.Path]::GetDirectoryName($JobFile)) 'config.ini'
+    $Vst2Dir = Get-SettingsValue $settingsFile 'install' 'vst2_dir'
+  } catch { }
+}
+
+$Curl = Join-Path $env:SystemRoot 'System32\curl.exe'
+if (-not [IO.File]::Exists($Curl)) { $Curl = 'curl.exe' }
+
+$entries = @()
+try {
+  if ($JobFile) { $entries = @(Read-Job $JobFile) }
+} catch { }
+$total = $entries.Count
+
+Write-Status ('START ' + $total)
+
+if ($total -gt 0 -and -not $NoElevate -and -not (Test-Administrator)) {
+  $elevated = $false
+  try {
+    Start-Elevated
+    $elevated = $true
+  } catch { }
+  if ($elevated) { exit 0 }
+  foreach ($entry in $entries) {
+    Write-Status ('FAIL ' + $entry.Id + ' administrator permission denied')
+  }
+  Write-Status ('DONE 0 ' + $total)
+  Remove-Credentials
+  exit 1
+}
+
+$ok = 0
+$failed = 0
+try {
+  foreach ($entry in $entries) {
+    try {
+      Install-Entry $entry
+      Write-Status ('OK ' + $entry.Id)
+      $ok++
+    } catch {
+      Write-Status ('FAIL ' + $entry.Id + ' ' + (ConvertTo-OneLine $_.Exception.Message))
+      $failed++
+    }
+  }
+} finally {
+  Write-Status ('DONE ' + $ok + ' ' + $failed)
+  Remove-Credentials
+}
+exit 0
