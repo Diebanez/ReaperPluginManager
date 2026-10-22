@@ -296,7 +296,7 @@ Feature: licence-activation
 
 ## 30. Activation walk-through window and openers
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 29

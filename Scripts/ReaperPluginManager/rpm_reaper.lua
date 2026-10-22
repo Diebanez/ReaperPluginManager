@@ -1072,8 +1072,9 @@ function M.draft.discard()
 end
 
 ---------------------------------------------------------------------------
--- Licence activation: the entry's activation field, and the record of the
--- entries still pending activation (`activation.ini`).
+-- Licence activation: the entry's activation field, the record of the
+-- entries still pending activation (`activation.ini`), and the walk-through
+-- window that opens each vendor's app or page.
 ---------------------------------------------------------------------------
 
 M.activation = {}
@@ -1150,6 +1151,321 @@ function M.activation.pending_for(installed_refs, catalogue)
     return {}
   end
   return core.activation.pending_among(installed_refs, catalogue, M.activation.pending())
+end
+
+-- Opens `target`, an application path or a URL, without waiting: Windows
+-- `start "" "<target>"`, macOS `open -a "<app>"` when `as_app`, else
+-- `open "<url>"`. Returns true when the opener started.
+local function open_target(target, as_app)
+  local p = platform()
+  if p == "windows" then
+    local cmd = 'cmd.exe /d /c start "" "' .. (target:gsub('"', "")) .. '"'
+    return reaper.ExecProcess(cmd, -1) ~= nil
+  elseif p == "macos" then
+    local cmd = (as_app and "open -a " or "open ") .. sh_quote(target) .. " >/dev/null 2>&1"
+    return os.execute(cmd) == true
+  end
+  return false
+end
+
+-- True when the vendor app is at its recorded location: an executable on
+-- Windows, an `.app` bundle on macOS.
+local function app_found(app)
+  if not app or not app.path then
+    return false
+  end
+  if platform() == "macos" then
+    return os.execute("test -d " .. sh_quote(app.path)) == true
+  end
+  return file_exists(app.path)
+end
+
+-- The walk-through steps for `entries`: one per vendor app on this platform,
+-- listing every entry that shares it, otherwise one per entry. Each step is
+-- { entries, method, app, url, instructions }; `instructions` holds each
+-- distinct instruction of its entries, in order.
+local function walk_steps(entries)
+  local p = platform()
+  local steps, by_app = {}, {}
+  for _, entry in ipairs(entries) do
+    local a = M.activation.read(entry)
+    local app = a.method == "vendor-app" and a.app[p] or nil
+    local key = app and (app.path or app.name):lower()
+    local step = key and by_app[key]
+    if not step then
+      step = { entries = {}, method = a.method, app = app, instructions = {}, seen = {} }
+      steps[#steps + 1] = step
+      if key then
+        by_app[key] = step
+      end
+    end
+    step.entries[#step.entries + 1] = entry
+    step.url = step.url or a.url
+    if a.instructions and not step.seen[a.instructions] then
+      step.seen[a.instructions] = true
+      step.instructions[#step.instructions + 1] = a.instructions
+    end
+  end
+  return steps
+end
+
+-- Opens what Activate opens for `step`. Returns the line the window shows
+-- under the step: what was opened, or why nothing was.
+local function activate_step(step)
+  if step.method == "vendor-app" and app_found(step.app) then
+    local name = step.app.name or step.app.path
+    if open_target(step.app.path, true) then
+      return "Opened " .. name .. "."
+    end
+    return "Cannot open " .. name .. "."
+  end
+  if not step.url then
+    return "No vendor page is recorded: follow the instructions above."
+  end
+  if not open_target(step.url, false) then
+    return "Cannot open " .. step.url
+  end
+  if step.method == "vendor-app" then
+    return "The vendor app was not found: opened its download page."
+  end
+  return "Opened the vendor page."
+end
+
+local WALK_TITLE = "ReaperPluginManager - Licence activation"
+local WALK_W, WALK_H = 520, 320
+local PAD, BUTTON_W, BUTTON_H = 16, 96, 28
+local BUTTONS = { "Activate", "Done", "Later" }
+
+-- The open walk-through, or nil: { steps, index, note, on_close, pressed,
+-- was_down }.
+local walk = nil
+
+local function step_heading(step)
+  if step.method == "vendor-app" then
+    local name = step.app and step.app.name
+    return name and ("Activate in " .. name) or "Activate in the vendor app"
+  elseif step.method == "serial" then
+    return "Activate with your serial number"
+  elseif step.method == "sign-in" then
+    return "Activate by signing in to your vendor account"
+  end
+  return "Activate"
+end
+
+local function step_names(step)
+  local names = {}
+  for _, entry in ipairs(step.entries) do
+    names[#names + 1] = type(entry.name) == "string" and entry.name or tostring(entry.id)
+  end
+  return (#names > 1 and "Plugins: " or "Plugin: ") .. table.concat(names, ", ")
+end
+
+-- Splits `text` into lines no wider than `width` in the current font.
+local function wrap(text, width)
+  local lines = {}
+  for para in (text .. "\n"):gmatch("(.-)\n") do
+    local line = ""
+    for word in para:gmatch("%S+") do
+      local try = line == "" and word or line .. " " .. word
+      if line ~= "" and gfx.measurestr(try) > width then
+        lines[#lines + 1] = line
+        line = word
+      else
+        line = try
+      end
+    end
+    lines[#lines + 1] = line
+  end
+  return lines
+end
+
+local function draw_lines(lines, y)
+  local _, h = gfx.measurestr("Ag")
+  for _, line in ipairs(lines) do
+    gfx.x, gfx.y = PAD, y
+    gfx.drawstr(line)
+    y = y + h + 2
+  end
+  return y
+end
+
+local function button_rects()
+  local rects, x = {}, PAD
+  local y = gfx.h - PAD - BUTTON_H
+  for i, label in ipairs(BUTTONS) do
+    rects[i] = { label = label, x = x, y = y, w = BUTTON_W, h = BUTTON_H }
+    x = x + BUTTON_W + 8
+  end
+  return rects
+end
+
+local function hit(rects, mx, my)
+  for _, r in ipairs(rects) do
+    if mx >= r.x and mx < r.x + r.w and my >= r.y and my < r.y + r.h then
+      return r.label
+    end
+  end
+  return nil
+end
+
+local function draw_walk(state, rects)
+  local step = state.steps[state.index]
+  local width = gfx.w - 2 * PAD
+  gfx.set(0.15, 0.15, 0.16)
+  gfx.rect(0, 0, gfx.w, gfx.h, 1)
+
+  gfx.setfont(1, "Arial", 15)
+  gfx.set(0.6, 0.6, 0.62)
+  gfx.x, gfx.y = PAD, PAD
+  gfx.drawstr(("Step %d of %d"):format(state.index, #state.steps))
+  local y = PAD + 24
+
+  gfx.setfont(2, "Arial", 18, string.byte("b"))
+  gfx.set(0.92, 0.92, 0.94)
+  y = draw_lines(wrap(step_heading(step), width), y) + 6
+
+  gfx.setfont(1)
+  y = draw_lines(wrap(step_names(step), width), y) + 8
+  local instructions = #step.instructions > 0 and table.concat(step.instructions, "\n")
+    or "No instructions were given for this plugin."
+  gfx.set(0.8, 0.8, 0.82)
+  y = draw_lines(wrap(instructions, width), y) + 8
+  if state.note then
+    gfx.set(0.55, 0.75, 0.95)
+    draw_lines(wrap(state.note, width), y)
+  end
+
+  gfx.set(0.6, 0.6, 0.62)
+  draw_lines(wrap("Done: the plugin is activated. Later: keep it flagged as pending.", width),
+    gfx.h - PAD - BUTTON_H - 26)
+
+  local hover = hit(rects, gfx.mouse_x, gfx.mouse_y)
+  for _, r in ipairs(rects) do
+    local shade = r.label == hover and 0.38 or 0.28
+    gfx.set(shade, shade, shade + 0.02)
+    gfx.rect(r.x, r.y, r.w, r.h, 1)
+    gfx.set(0.92, 0.92, 0.94)
+    local tw, th = gfx.measurestr(r.label)
+    gfx.x, gfx.y = r.x + (r.w - tw) / 2, r.y + (r.h - th) / 2
+    gfx.drawstr(r.label)
+  end
+  gfx.update()
+end
+
+local function close_walk(state)
+  if walk ~= state then
+    return
+  end
+  walk = nil
+  gfx.quit()
+  if state.on_close then
+    state.on_close()
+  end
+end
+
+local function next_step(state)
+  state.index = state.index + 1
+  state.note = nil
+  if state.index > #state.steps then
+    close_walk(state)
+  end
+end
+
+local function click(state, label)
+  local step = state.steps[state.index]
+  if label == "Activate" then
+    state.note = activate_step(step)
+  elseif label == "Done" then
+    local ok, err = M.activation.clear(step.entries)
+    if not ok then
+      console("cannot update the activation-pending record: " .. one_line(err))
+    end
+    next_step(state)
+  elseif label == "Later" then
+    next_step(state)
+  end
+end
+
+-- Opens the walk-through window for `entries` and calls `on_close` when it
+-- closes. It takes over the script's one `gfx` window: an open walk-through
+-- is closed first (its own `on_close` runs), and any other window of this
+-- script is replaced.
+local function open_walk(entries, on_close)
+  if walk then
+    close_walk(walk)
+  end
+  local state = { steps = walk_steps(entries), index = 1, on_close = on_close }
+  if #state.steps == 0 then
+    if on_close then
+      on_close()
+    end
+    return
+  end
+  walk = state
+  gfx.quit()
+  gfx.init(WALK_TITLE, WALK_W, WALK_H)
+  local function loop()
+    if walk ~= state then
+      return
+    end
+    local c = gfx.getchar()
+    if c < 0 or c == 27 then
+      close_walk(state)
+      return
+    end
+    local rects = button_rects()
+    local down = gfx.mouse_cap & 1 == 1
+    if down and not state.was_down then
+      state.pressed = hit(rects, gfx.mouse_x, gfx.mouse_y)
+    elseif not down and state.was_down then
+      local label = hit(rects, gfx.mouse_x, gfx.mouse_y)
+      if label and label == state.pressed then
+        click(state, label)
+      end
+      state.pressed = nil
+    end
+    state.was_down = down
+    if walk ~= state then
+      return
+    end
+    draw_walk(state, rects)
+    reaper.defer(loop)
+  end
+  loop()
+end
+
+-- Called by plugin-installation after a run with the entries it installed:
+-- records every entry whose activation method is not `none` as pending, then
+-- opens the walk-through for them. `on_close` runs when the window closes,
+-- so installation can then show its restart message; with nothing to
+-- activate it runs at once. Done clears a step's entries from the pending
+-- record; Later and closing the window leave them pending.
+function M.activation.after_install(entries, on_close)
+  local needed = {}
+  for _, entry in ipairs(entries or {}) do
+    if type(entry) == "table" and M.activation.read(entry).method ~= "none" then
+      needed[#needed + 1] = entry
+    end
+  end
+  if #needed > 0 then
+    local ok, err = M.activation.mark_pending(needed)
+    if not ok then
+      console("cannot update the activation-pending record: " .. one_line(err))
+    end
+  end
+  open_walk(needed, on_close)
+end
+
+-- Reopens the walk-through for the catalogue entries `entries`, such as the
+-- pending ones the summary window lists; `on_close` runs when it closes.
+function M.activation.activate(entries, on_close)
+  local list = {}
+  for _, entry in ipairs(entries or {}) do
+    if type(entry) == "table" then
+      list[#list + 1] = entry
+    end
+  end
+  open_walk(list, on_close)
 end
 
 ---------------------------------------------------------------------------
