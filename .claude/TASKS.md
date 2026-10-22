@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 32
+Last task number: 36
 
 ---
 
@@ -321,5 +321,45 @@ Target: claude
 Files: README.md, server/README.md
 Preconditions: 29, 30, 31
 Feature: licence-activation
+
+---
+
+## 33. Catalogue editor shell: ReaImGui guard, draft store, entry list
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 7
+Feature: catalogue-editor
+
+---
+
+## 34. Add entries: from installed, by hand, from a draft file
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: 10, 33
+Feature: catalogue-editor
+
+---
+
+## 35. Entry form, checksums and removal
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua
+Preconditions: 34
+Feature: catalogue-editor
+
+---
+
+## 36. Update documentation for feature `catalogue-editor`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 33, 34, 35
+Feature: catalogue-editor
 
 ---
