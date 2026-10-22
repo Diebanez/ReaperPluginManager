@@ -15,6 +15,8 @@ layer.
 | [design-process.md](./design-process.md) | State of the `/product-design` run: method, phases, current stage |
 | [product-design.md](./product-design.md) | The product design: what ReaperPluginManager is, its users, key flows, design decisions and high-level features |
 | [technical-direction.md](./technical-direction.md) | The product's technical foundations: stack, topology, data, hosting, protocols |
+| [features/server-access.md](./features/server-access.md) | Settings file, server credentials in the OS secret store, and the shared `curl` transfer contract |
+| [features/setup-action.md](./features/setup-action.md) | The setup action: dialog, validation, action registration, startup hook, connection test |
 
 ## Features
 
