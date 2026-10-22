@@ -924,4 +924,178 @@ function M.group_installed(installed)
   return groups
 end
 
+---------------------------------------------------------------------------
+-- Catalogue validation and match index
+---------------------------------------------------------------------------
+
+M.catalogue = {}
+
+-- The highest catalogue format version this tool understands.
+M.catalogue.VERSION = 1
+
+-- The installer types of each platform; a missing `type` is derived from the
+-- file extension when it names one of them.
+local INSTALLER_TYPES = {
+  windows = { exe = true, msi = true, zip = true },
+  macos = { pkg = true, dmg = true, zip = true },
+}
+
+-- True for a JSON array: a table marked json.array, or an unmarked one whose
+-- keys are exactly 1..n.
+local function is_json_array(v)
+  if type(v) ~= "table" or v == M.json.null then
+    return false
+  end
+  local mt = getmetatable(v)
+  if mt == ARRAY_MT then
+    return true
+  elseif mt ~= nil then
+    return false
+  end
+  local n, count = #v, 0
+  for k in pairs(v) do
+    if math.type(k) ~= "integer" or k < 1 or k > n then
+      return false
+    end
+    count = count + 1
+  end
+  return count == n
+end
+
+local function is_json_object(v)
+  return type(v) == "table" and v ~= M.json.null and not is_json_array(v)
+end
+
+local function has_text(v)
+  return type(v) == "string" and trim(v) ~= ""
+end
+
+-- A shallow copy of the JSON object `t`, still marked as an object.
+local function copy_object(t)
+  local c = {}
+  for k, v in pairs(t) do
+    c[k] = v
+  end
+  return setmetatable(c, getmetatable(t) or OBJECT_MT)
+end
+
+-- Returns the installer `inst` for `platform` ready to use, or nil when it
+-- counts as absent: not an object, or an empty `file`.
+local function check_installer(inst, platform)
+  if not is_json_object(inst) or not has_text(inst.file) then
+    return nil
+  end
+  inst = copy_object(inst)
+  if not has_text(inst.type) then
+    local ext = inst.file:match("%.(%w+)$")
+    ext = ext and ext:lower()
+    inst.type = INSTALLER_TYPES[platform][ext] and ext or nil
+  end
+  return inst
+end
+
+local function check_match(m)
+  if not is_json_array(m) or #m == 0 then
+    return false
+  end
+  for _, s in ipairs(m) do
+    if type(s) ~= "string" then
+      return false
+    end
+  end
+  return true
+end
+
+-- Returns a usable copy of the catalogue entry `e`, or nil and the reason it
+-- is skipped. `activation` and unknown keys are carried through untouched.
+local function check_entry(e)
+  if not is_json_object(e) then
+    return nil, "not an object"
+  elseif not has_text(e.id) then
+    return nil, 'missing "id"'
+  elseif e.id:find("%s") then
+    return nil, '"id" contains spaces'
+  elseif not has_text(e.name) then
+    return nil, 'missing "name"'
+  elseif not check_match(e.match) then
+    return nil, 'missing "match"'
+  end
+  local entry = copy_object(e)
+  entry.installers = nil
+  if is_json_object(e.installers) then
+    local installers = copy_object(e.installers)
+    for platform in pairs(INSTALLER_TYPES) do
+      installers[platform] = check_installer(e.installers[platform], platform)
+    end
+    entry.installers = installers
+  end
+  return entry
+end
+
+-- Validates a decoded catalogue against the format. Returns a copy holding
+-- only the usable entries plus the list of warnings for the skipped ones, or
+-- nil and an error when the whole catalogue is rejected: `version` missing or
+-- higher than VERSION, or `plugins` not an array. An installer with an empty
+-- `file` is removed as absent, and one with no `type` gets it from the file
+-- extension. The input is not modified. Never raises.
+function M.catalogue.validate(value)
+  if not is_json_object(value) then
+    return nil, "invalid catalogue: not a JSON object"
+  end
+  local v = value.version
+  if v == nil then
+    return nil, 'invalid catalogue: missing "version"'
+  elseif type(v) ~= "number" or v ~= math.floor(v) or v < 1 then
+    return nil, 'invalid catalogue: "version" is not a version number'
+  elseif v > M.catalogue.VERSION then
+    return nil, ("unsupported catalogue format version %s: this version of "
+      .. "ReaperPluginManager reads up to %d")
+      :format(tostring(math.tointeger(v) or v), M.catalogue.VERSION)
+  end
+  if not is_json_array(value.plugins) then
+    return nil, 'invalid catalogue: "plugins" is not an array'
+  end
+
+  local plugins, warnings, seen = M.json.array(), {}, {}
+  for i, e in ipairs(value.plugins) do
+    local entry, why = check_entry(e)
+    if entry and seen[entry.id] then
+      entry, why = nil, 'repeated "id"'
+    end
+    if entry then
+      seen[entry.id] = true
+      plugins[#plugins + 1] = entry
+    else
+      local label = ""
+      if is_json_object(e) and has_text(e.id) then
+        label = (' "%s"'):format(e.id)
+      end
+      warnings[#warnings + 1] = ("entry %d%s skipped: %s"):format(i, label, why)
+    end
+  end
+  local catalogue = copy_object(value)
+  catalogue.plugins = plugins
+  return catalogue, warnings
+end
+
+-- Builds the match index of a validated catalogue: `norm(m)` for every match
+-- string `m` of every entry, to that entry; when two entries share a
+-- normalized string the first keeps it. Returns lookup(normalized) → entry or
+-- nil.
+function M.catalogue.index(catalogue)
+  local map = {}
+  local plugins = type(catalogue) == "table" and catalogue.plugins
+  for _, entry in ipairs(type(plugins) == "table" and plugins or {}) do
+    for _, m in ipairs(entry.match or {}) do
+      local k = M.norm(m)
+      if k ~= "" and map[k] == nil then
+        map[k] = entry
+      end
+    end
+  end
+  return function(s)
+    return map[s]
+  end
+end
+
 return M

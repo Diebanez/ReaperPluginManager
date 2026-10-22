@@ -56,7 +56,7 @@ Feature: plugin-catalogue
 
 ## 6. Catalogue validation and match index
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua, server/manifest.example.json
 Preconditions: 5, 10

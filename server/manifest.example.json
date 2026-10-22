@@ -1,0 +1,51 @@
+{
+  "plugins": [
+    {
+      "id": "acme-compressor",
+      "name": "Acme Compressor",
+      "vendor": "Acme Audio",
+      "match": [
+        "Acme Compressor",
+        "AcmeCompressor.vst3",
+        "AcmeCompressor.dll",
+        "AcmeCompressor.component",
+        "AcmeCompressor.clap",
+        "com.acmeaudio.compressor"
+      ],
+      "installers": {
+        "macos": {
+          "file": "acme/AcmeCompressor-2.1.0-mac.pkg",
+          "type": "pkg"
+        },
+        "windows": {
+          "file": "acme/AcmeCompressor-2.1.0-win.exe",
+          "type": "exe",
+          "args": "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+        }
+      }
+    },
+    {
+      "id": "acme-reverb",
+      "name": "Acme Reverb",
+      "vendor": "Acme Audio",
+      "note": "VST3 only",
+      "match": [
+        "Acme Reverb",
+        "AcmeReverb.vst3"
+      ],
+      "installers": {
+        "macos": {
+          "file": "acme/AcmeReverb-1.4.0.zip",
+          "type": "zip",
+          "dest": "vst3"
+        },
+        "windows": {
+          "file": "acme/AcmeReverb-1.4.0.zip",
+          "type": "zip",
+          "dest": "vst3"
+        }
+      }
+    }
+  ],
+  "version": 1
+}
