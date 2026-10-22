@@ -1887,7 +1887,7 @@ local function poll_status(state)
   for _, item in ipairs(state.items) do
     local s = st.items[item.id]
     if s then
-      item.state, item.message = s.state, s.message
+      item.state, item.message, item.note = s.state, s.message, s.note
     end
   end
   if st.done then
@@ -1908,7 +1908,7 @@ local function install_heading(state)
 end
 
 -- The progress lines as { text, r, g, b, indent }: one per plugin, then its
--- failure message, wrapped to `width`.
+-- failure message, or its note once installed, wrapped to `width`.
 local function install_rows(state, width)
   local rows = {}
   for _, item in ipairs(state.items) do
@@ -1924,6 +1924,10 @@ local function install_rows(state, width)
     if item.state == "failed" and item.message and item.message ~= "" then
       for _, line in ipairs(wrap(item.message, width - 16)) do
         rows[#rows + 1] = { line, 0.75, 0.5, 0.5, 16 }
+      end
+    elseif item.state == "ok" and item.note and item.note ~= "" then
+      for _, line in ipairs(wrap(item.note, width - 16)) do
+        rows[#rows + 1] = { line, 0.7, 0.7, 0.72, 16 }
       end
     end
   end

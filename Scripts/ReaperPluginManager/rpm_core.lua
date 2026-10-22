@@ -1931,17 +1931,19 @@ end
 local ITEM_STEPS = { download = true, verify = true, install = true }
 
 -- Parses the status file text the helper appends to: `START <n>`,
--- `ITEM <id> download|verify|install`, `OK <id>`, `FAIL <id> <message>`,
--- `DONE <ok> <failed>`. Only lines ending in `\n` count (`\r\n` tolerated), so
--- a line still being written waits for the next read; a leading BOM is
--- ignored; `START` may appear twice (the Windows helper restarts elevated)
--- and the last one wins; any other line is skipped. Returns { started, total,
--- done, ok, failed, items, order }: `started` true once a `START` was seen,
--- `total` the `n` of the last one, `done` true once `DONE` was seen with its
--- `ok` and `failed` counts, `items` per id { state, message } with `state`
--- the step under way (`download`, `verify`, `install`) or the outcome (`ok`,
--- `failed`) and `message` the failure's, and `order` the ids in order of
--- first appearance. An id with no line yet is queued. Never raises.
+-- `ITEM <id> download|verify|install`, `NOTE <id> <message>`, `OK <id>`,
+-- `FAIL <id> <message>`, `DONE <ok> <failed>`. Only lines ending in `\n` count
+-- (`\r\n` tolerated), so a line still being written waits for the next read;
+-- a leading BOM is ignored; `START` may appear twice (the Windows helper
+-- restarts elevated) and the last one wins; any other line is skipped.
+-- Returns { started, total, done, ok, failed, items, order }: `started` true
+-- once a `START` was seen, `total` the `n` of the last one, `done` true once
+-- `DONE` was seen with its `ok` and `failed` counts, `items` per id
+-- { state, message, note } with `state` the step under way (`download`,
+-- `verify`, `install`) or the outcome (`ok`, `failed`), `message` the
+-- failure's and `note` the last `NOTE` (which leaves `state` as it is), and
+-- `order` the ids in order of first appearance. An id with no line yet is
+-- queued. Never raises.
 function M.install.parse_status(text)
   local result = { started = false, done = false, items = {}, order = {} }
   text = tostring(text or "")
@@ -1949,11 +1951,17 @@ function M.install.parse_status(text)
     text = text:sub(#BOM + 1)
   end
 
-  local function set(id, state, message)
+  local function item(id)
     if not result.items[id] then
       result.order[#result.order + 1] = id
+      result.items[id] = {}
     end
-    result.items[id] = { state = state, message = message }
+    return result.items[id]
+  end
+
+  local function set(id, state, message)
+    local it = item(id)
+    it.state, it.message = state, message
   end
 
   local pos = 1
@@ -1976,6 +1984,11 @@ function M.install.parse_status(text)
       local id, step = rest:match("^(%S+)%s+(%a+)$")
       if id and ITEM_STEPS[step] then
         set(id, step)
+      end
+    elseif word == "NOTE" then
+      local id, note = rest:match("^(%S+)%s+(.+)$")
+      if id then
+        item(id).note = note
       end
     elseif word == "OK" and rest:match("^%S+$") then
       set(rest, "ok")

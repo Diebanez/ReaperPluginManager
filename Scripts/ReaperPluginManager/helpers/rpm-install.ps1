@@ -5,12 +5,14 @@
 #
 #   -JobFile <file>     job.tsv: id name type url sha256 args dest, tab-separated
 #   -StatusFile <file>  appended: START <n>, ITEM <id> download|verify|install,
-#                       OK <id>, FAIL <id> <message>, DONE <ok> <failed>
+#                       NOTE <id> <message>, OK <id>, FAIL <id> <message>,
+#                       DONE <ok> <failed>
 #   -WorkDir <dir>      downloads go to <dir>\<id>
 #   -NetrcFile <file>   curl credentials file; deleted when the run ends
 #   -Tls required|try|off (default required)   -Insecure
 #   -Vst3Dir <dir>      default %CommonProgramFiles%\VST3
-#   -Vst2Dir <dir>      default the settings' [install] vst2_dir
+#   -Vst2Dir <dir>      default the settings' [install] vst2_dir; when empty,
+#                       VST2 files in archives are skipped with a NOTE
 #   -ClapDir <dir>      default %CommonProgramFiles%\CLAP
 #   -NoElevate          do not relaunch as administrator (development use)
 #
@@ -202,17 +204,25 @@ function Get-ErrorText($record) {
 }
 
 # The outermost plugin items under `dir`, in name order, without descending
-# into an item already found; __MACOSX folders are skipped.
+# into an item already found; __MACOSX folders and .lv2 bundles are skipped,
+# since an LV2 bundle's inner .dll files are not VST2 plugins.
 function Find-PluginItems([string]$dir) {
   foreach ($path in ([IO.Directory]::GetFileSystemEntries($dir) | Sort-Object)) {
     $isDir = [IO.Directory]::Exists($path)
     $ext = [IO.Path]::GetExtension($path).ToLowerInvariant()
     if ($ext -eq '.vst3' -or (-not $isDir -and ($ext -eq '.clap' -or $ext -eq '.dll'))) {
       $path
-    } elseif ($isDir -and [IO.Path]::GetFileName($path) -ne '__MACOSX') {
+    } elseif ($isDir -and $ext -ne '.lv2' -and [IO.Path]::GetFileName($path) -ne '__MACOSX') {
       Find-PluginItems $path
     }
   }
+}
+
+# True when the plugin item goes to the VST2 folder: the entry's dest says
+# vst2, or there is no dest and the item is a .dll.
+function Test-Vst2Item([string]$item, [string]$dest) {
+  if ($dest) { return $dest.ToLowerInvariant() -eq 'vst2' }
+  return [IO.Path]::GetExtension($item).ToLowerInvariant() -eq '.dll'
 }
 
 # The plugin items to copy: of a name found more than once, the copies whose
@@ -279,7 +289,9 @@ function Copy-PluginItem([string]$item, [string]$folder) {
 }
 
 # Unpacks the archive into `dir`\unpacked and copies its plugin items to their
-# folders, every folder resolved before the first copy.
+# folders, every folder resolved before the first copy. VST2 is optional: with
+# no VST2 folder set, VST2 items are skipped and their names returned, so the
+# caller can report them; an archive holding nothing else fails.
 function Install-Zip($entry, [string]$file, [string]$dir) {
   $root = Join-Path $dir 'unpacked'
   try {
@@ -291,10 +303,19 @@ function Install-Zip($entry, [string]$file, [string]$dir) {
   $items = @(Find-PluginItems $root)
   if ($items.Count -eq 0) { throw 'no plugin (.vst3, .clap, .dll) in the archive' }
   $items = @(Select-PreferredItems $items $root)
+  $skipped = @()
+  if (-not $Vst2Dir) {
+    $skipped = @($items | Where-Object { Test-Vst2Item $_ $entry.Dest } | ForEach-Object { [IO.Path]::GetFileName($_) })
+    $items = @($items | Where-Object { -not (Test-Vst2Item $_ $entry.Dest) })
+    if ($items.Count -eq 0) {
+      throw 'only VST2 plugins in the archive and no VST2 folder set (vst2_dir in the settings)'
+    }
+  }
   $folders = @($items | ForEach-Object { Get-PluginFolder $_ $entry.Dest })
   for ($i = 0; $i -lt $items.Count; $i++) {
     Copy-PluginItem $items[$i] $folders[$i]
   }
+  return $skipped
 }
 
 # Downloads, verifies and installs one entry; throws with the FAIL message.
@@ -322,10 +343,13 @@ function Install-Entry($entry) {
   switch ($entry.Type) {
     'exe' { $code = Install-Exe $entry $file $dir }
     'msi' { $code = Install-Msi $entry $file }
-    'zip' { Install-Zip $entry $file $dir; $code = 0 }
+    'zip' { $skipped = @(Install-Zip $entry $file $dir); $code = 0 }
   }
   if ($SuccessCodes -notcontains $code) {
     throw ('installer exited with code ' + $code)
+  }
+  if ($entry.Type -eq 'zip' -and $skipped.Count -gt 0) {
+    Write-Status ('NOTE ' + $entry.Id + ' VST2 not installed (no VST2 folder set, vst2_dir in the settings): ' + ($skipped -join ', '))
   }
 
   try { [IO.Directory]::Delete($dir, $true) } catch { }

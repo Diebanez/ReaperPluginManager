@@ -291,7 +291,7 @@ manager does not accept, takes its default. Comments start with `;` or `#`.
 | `[server]` | `user` | The server account's user name; empty connects anonymously | empty |
 | `[server]` | `tls` | `required` (the connection must be encrypted), `try` (encrypted when the server offers it) or `off` | `required` |
 | `[server]` | `insecure` | `1` accepts a server certificate that is not trusted, such as a self-signed one; `0` refuses it | `0` |
-| `[install]` | `vst2_dir` | Windows only: the folder where VST2 `.dll` files unpacked from a zip installer are put | empty |
+| `[install]` | `vst2_dir` | Windows only, optional: the folder where VST2 `.dll` files unpacked from a zip installer are put. Empty skips them: the VST3 and CLAP versions are installed and the install window names the VST2 files left out | empty |
 | `[check]` | `auto` | `1` checks every project when it is opened; `0` checks only on demand | `1` |
 | `[check]` | `notify_unknown` | `1` lists the plugins that are not in the catalogue; `0` hides that group | `1` |
 

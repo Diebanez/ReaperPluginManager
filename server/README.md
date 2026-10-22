@@ -369,12 +369,15 @@ file type:
 - `.vst3` (file or folder) — `C:\Program Files\Common Files\VST3`
 - `.clap` — `C:\Program Files\Common Files\CLAP`
 - `.dll` (VST2) — the folder in the member's `vst2_dir` setting, described in
-  the member guide. Windows has no standard VST2 folder: with the setting
-  empty, an archive holding a `.dll` fails with "no VST2 folder set" and
-  nothing from it is copied.
+  the member guide. VST2 is optional: Windows has no standard VST2 folder, and
+  with the setting empty the `.dll` files are skipped while the rest of the
+  archive is installed; the install window names the files left out. An
+  archive holding only VST2 plugins then fails with "only VST2 plugins in the
+  archive and no VST2 folder set".
 
 Only the outermost plugins are copied, never the contents of a `.vst3`
-folder, and `__MACOSX` folders are ignored. A plugin of the same name already
+folder; `__MACOSX` folders and `.lv2` folders (LV2 plugins, which the manager
+does not install) are ignored, contents included. A plugin of the same name already
 in the folder is replaced. When the archive holds more than one copy of the
 same file name, the copies whose folder path in the archive contains a word
 marking them 32-bit (`x86`, `32bit`, `32-bit`, `win32` or `32`) are skipped,
