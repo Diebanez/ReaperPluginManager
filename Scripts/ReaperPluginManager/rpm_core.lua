@@ -1098,4 +1098,113 @@ function M.catalogue.index(catalogue)
   end
 end
 
+---------------------------------------------------------------------------
+-- Catalogue association and classification
+---------------------------------------------------------------------------
+
+-- The plugin formats REAPER can load on each platform.
+local LOADABLE = {
+  windows = { vst = true, vst3 = true, clap = true, lv2 = true, dx = true },
+  macos = { vst = true, vst3 = true, au = true, clap = true, lv2 = true },
+}
+
+-- The format of a project reference: from its display-name prefix, else from
+-- its chunk tag, a `<VST` whose identifier names a .vst3 file being VST3.
+local function ref_format(ref)
+  local format = M.split_name(ref.name)
+  if format then
+    return format
+  end
+  local tag = tostring(ref.tag or ""):lower()
+  if tag == "vst" and tostring(ref.ident or ""):lower():match("%.vst3") then
+    return "vst3"
+  end
+  return FORMATS[tag]
+end
+
+-- Returns the catalogue entry `plugin` (a reference or an installed plugin,
+-- { name, ident }) associates with: the first hit of its identifier key,
+-- `norm(base name)` and `norm(bare name)` in `lookup`, or nil. A nil
+-- `lookup` (no catalogue) associates nothing.
+local function associate(plugin, lookup)
+  if not lookup then
+    return nil
+  end
+  local _, base, bare = M.split_name(plugin.name)
+  for _, k in ipairs({ M.ident_key(plugin.ident), M.norm(base), M.norm(bare) }) do
+    if k ~= "" then
+      local entry = lookup(k)
+      if entry then
+        return entry
+      end
+    end
+  end
+  return nil
+end
+
+-- Sorts the missing references into the summary groups for `platform`
+-- (`windows` or `macos`), against the catalogue match index `lookup` (nil
+-- when there is no catalogue, so nothing is installable). With `p` the entry
+-- a reference associates with and `spec` its installer for `platform`:
+-- - `p` present (some installed plugin associates with it) → replace;
+-- - `spec` → installable, and also replace when the format cannot load here;
+-- - `p` without `spec` → no_installer;
+-- - no `p` and a format that cannot load here → replace;
+-- - no `p` → unknown.
+-- `installable` holds one { entry, installer, count, refs } per entry in order
+-- of first appearance, `count` summing the instances of its references. The
+-- other groups hold { ref, entry, format } per reference, and `replace` items
+-- also a `reason`: "present" or "unloadable".
+function M.classify(missing_refs, installed, lookup, platform)
+  local result = { installable = {}, no_installer = {}, unknown = {}, replace = {} }
+  local loadable = LOADABLE[platform] or {}
+
+  local present = {}
+  for _, p in ipairs(installed or {}) do
+    local entry = associate(p, lookup)
+    if entry then
+      present[entry] = true
+    end
+  end
+
+  local groups = {}
+  for _, ref in ipairs(missing_refs or {}) do
+    local format = ref_format(ref)
+    local can_load = format ~= nil and loadable[format] == true
+    local entry = associate(ref, lookup)
+    local spec = entry and type(entry.installers) == "table"
+      and entry.installers[platform] or nil
+    if spec == M.json.null then
+      spec = nil
+    end
+    local item = { ref = ref, entry = entry, format = format }
+
+    if entry and present[entry] then
+      item.reason = "present"
+      result.replace[#result.replace + 1] = item
+    elseif spec then
+      local g = groups[entry]
+      if not g then
+        g = { entry = entry, installer = spec, count = 0, refs = {} }
+        groups[entry] = g
+        result.installable[#result.installable + 1] = g
+      end
+      g.count = g.count + (ref.count or 1)
+      g.refs[#g.refs + 1] = ref
+      if not can_load then
+        item.reason = "unloadable"
+        result.replace[#result.replace + 1] = item
+      end
+    elseif entry then
+      result.no_installer[#result.no_installer + 1] = item
+    elseif not can_load then
+      item.reason = "unloadable"
+      result.replace[#result.replace + 1] = item
+    else
+      result.unknown[#result.unknown + 1] = item
+    end
+  end
+  return result
+end
+
 return M

@@ -106,7 +106,7 @@ Feature: plugin-detection
 
 ## 11. Catalogue association and classification
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: 6, 10
