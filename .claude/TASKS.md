@@ -86,7 +86,7 @@ Feature: plugin-catalogue
 
 ## 9. Project file scanner
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: none

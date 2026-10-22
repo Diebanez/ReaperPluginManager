@@ -714,4 +714,73 @@ function M.json.encode(value)
   return table.concat(buf)
 end
 
+---------------------------------------------------------------------------
+-- Project scanner (.rpp)
+---------------------------------------------------------------------------
+
+-- The chunk tags that open a plugin reference; `<JS` is not one of them.
+local PLUGIN_TAGS = { VST = true, AU = true, CLAP = true, LV2 = true, DX = true }
+
+local QUOTES = { ['"'] = true, ["'"] = true, ["`"] = true }
+
+-- Reads up to `max` tokens of an .rpp line: tokens are separated by spaces,
+-- and one that opens with ", ' or ` runs to the next same quote. Returns the
+-- tokens, or nil when a quoted token among them is never closed.
+local function rpp_tokens(line, max)
+  local tokens, pos = {}, 1
+  while #tokens < max do
+    pos = line:find("[^ \t]", pos)
+    if not pos then
+      break
+    end
+    local q = line:sub(pos, pos)
+    if QUOTES[q] then
+      local close = line:find(q, pos + 1, true)
+      if not close then
+        return nil
+      end
+      tokens[#tokens + 1] = line:sub(pos + 1, close - 1)
+      pos = close + 1
+    else
+      local stop = line:find("[ \t]", pos) or #line + 1
+      tokens[#tokens + 1] = line:sub(pos, stop - 1)
+      pos = stop
+    end
+  end
+  return tokens
+end
+
+-- Returns every plugin reference in the project file text: each distinct
+-- (tag, display name, identifier) once, as { tag, name, ident, count }, in
+-- order of first appearance. A line whose trimmed text opens with `<VST `,
+-- `<AU `, `<CLAP `, `<LV2 ` or `<DX ` is a reference wherever it sits (track
+-- chains, master, take FX, containers). A malformed line is skipped. Never
+-- raises.
+function M.scan_project(text)
+  local refs, index = {}, {}
+  if type(text) ~= "string" then
+    return refs
+  end
+  for _, raw in ipairs(split_lines(text)) do
+    local line = trim(raw)
+    local tag = line:match("^<(%w+) ")
+    if tag and PLUGIN_TAGS[tag] then
+      local tokens = rpp_tokens(line, 3)
+      local name, ident = tokens and tokens[2], tokens and tokens[3]
+      if name and ident and name ~= "" then
+        local key = tag .. "\0" .. name .. "\0" .. ident
+        local ref = index[key]
+        if ref then
+          ref.count = ref.count + 1
+        else
+          ref = { tag = tag, name = name, ident = ident, count = 1 }
+          index[key] = ref
+          refs[#refs + 1] = ref
+        end
+      end
+    end
+  end
+  return refs
+end
+
 return M
