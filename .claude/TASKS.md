@@ -6,7 +6,7 @@ Last task number: 40
 
 ## 1. Settings file reader with defaults
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: none
