@@ -1,1 +1,2 @@
 *.sh text eol=lf
+/.claude/skills/catalogue-assistant export-ignore
