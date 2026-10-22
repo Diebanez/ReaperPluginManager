@@ -370,9 +370,9 @@ function M.credentials.release_file(path)
 end
 
 -- The prefixes of the transient files a crash can leave in the data folder:
--- credentials files, secret hand-offs, curl error output and background
--- upload status files.
-local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload" }
+-- credentials files, secret hand-offs, curl error output, background upload
+-- status files and catalogue downloads and cache writes.
+local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload", "catalogue" }
 
 -- Removes the transient files a crash left in the data folder. Runs once per
 -- REAPER session, at the first load of this module.
@@ -845,6 +845,143 @@ function M.transfer.helper_options()
     return nil, err
   end
   return { netrc_path = path, tls = settings.server.tls, insecure = settings.server.insecure }
+end
+
+---------------------------------------------------------------------------
+-- Catalogue: fetch from the server root, with the local cache as fallback.
+---------------------------------------------------------------------------
+
+M.catalogue = {}
+
+local CATALOGUE_FILE = "manifest.json"
+
+local function cache_path()
+  return M.data_dir() .. "catalogue.json"
+end
+
+local function read_file(path)
+  local f = io.open(path, "rb")
+  if not f then
+    return nil
+  end
+  local text = f:read("a")
+  f:close()
+  return text
+end
+
+local function one_line(s)
+  return (tostring(s):gsub("%s+", " "):gsub("^ ", ""):gsub(" $", ""))
+end
+
+local function console(msg)
+  reaper.ShowConsoleMsg("ReaperPluginManager: " .. msg .. "\n")
+end
+
+local function report_warnings(warnings)
+  for _, w in ipairs(warnings or {}) do
+    console("catalogue " .. w)
+  end
+end
+
+-- Replaces the cache with the decoded catalogue `value` served by `url`.
+-- Returns true, or false and an error.
+local function save_cache(url, value)
+  local text, err = core.catalogue.cache_text(url, value)
+  if not text then
+    return false, err
+  end
+  reaper.RecursiveCreateDirectory(M.data_dir(), 0)
+  local temp = temp_path("catalogue")
+  local f = io.open(temp, "wb")
+  if not f then
+    return false, "Cannot write " .. temp
+  end
+  local ok = f:write(text)
+  f:close()
+  if not ok then
+    os.remove(temp)
+    return false, "Cannot write " .. temp
+  end
+  local moved, merr = move_file(temp, cache_path())
+  if not moved then
+    os.remove(temp)
+  end
+  return moved, merr
+end
+
+-- The cached catalogue and its warnings when the cache came from `url` and
+-- is still valid, or nil.
+local function load_cache(url)
+  local text = read_file(cache_path())
+  if not text then
+    return nil
+  end
+  return core.catalogue.read_cache(text, url)
+end
+
+-- Downloads and validates the server catalogue and, when it is usable,
+-- replaces the cache with it. Returns the catalogue and its warnings, or nil
+-- and the one-line reason it cannot be used.
+local function fetch_server(url)
+  local temp = temp_path("catalogue")
+  local ok, err = M.transfer.download(CATALOGUE_FILE, temp)
+  if not ok then
+    os.remove(temp)
+    return nil, "Cannot download the catalogue: " .. one_line(err)
+  end
+  local text = read_file(temp)
+  os.remove(temp)
+  if not text then
+    return nil, "Cannot read the downloaded catalogue."
+  end
+  local catalogue, warnings, value = core.catalogue.parse(text)
+  if not catalogue then
+    return nil, warnings
+  end
+  local saved, serr = save_cache(url, value)
+  if not saved then
+    console("cannot update the catalogue cache: " .. one_line(serr))
+  end
+  return catalogue, warnings
+end
+
+local function fetch(url)
+  local catalogue, warnings = fetch_server(url)
+  if catalogue then
+    report_warnings(warnings)
+    return catalogue, "server"
+  end
+  local reason = warnings
+  local cached, cache_warnings = load_cache(url)
+  if not cached then
+    return nil, "none", reason
+  end
+  report_warnings(cache_warnings)
+  return cached, "cache", reason
+end
+
+-- Fetches the catalogue from the server root. Returns catalogue, source and
+-- reason: source is "server" (the cache was replaced), "cache" (the server
+-- catalogue could not be used; reason says why) or "none" (no usable cache
+-- either; the catalogue is nil). Validation warnings go to the REAPER
+-- console. A cache from another server URL than the current setting is
+-- ignored. Never raises.
+function M.catalogue.fetch()
+  local url = ""
+  local ok, catalogue, source, reason = pcall(function()
+    url = M.settings.load().server.url
+    return fetch(url)
+  end)
+  if ok then
+    return catalogue, source, reason
+  end
+  reason = "Cannot fetch the catalogue: " .. one_line(catalogue)
+  local cok, cached, warnings = pcall(load_cache, url)
+  if cok and cached then
+    pcall(report_warnings, warnings)
+    return cached, "cache", reason
+  end
+  return nil, "none", reason
 end
 
 return M

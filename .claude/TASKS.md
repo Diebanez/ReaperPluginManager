@@ -66,7 +66,7 @@ Feature: plugin-catalogue
 
 ## 7. Catalogue fetch with cached fallback
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: 3, 6

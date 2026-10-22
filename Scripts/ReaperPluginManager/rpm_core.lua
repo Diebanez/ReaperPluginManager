@@ -1078,6 +1078,43 @@ function M.catalogue.validate(value)
   return catalogue, warnings
 end
 
+-- Decodes and validates the catalogue text the server served. Returns the
+-- catalogue, its warnings and the decoded value (what the cache keeps), or nil
+-- and the one-line reason it cannot be used. Never raises.
+function M.catalogue.parse(text)
+  local value, err = M.json.decode(text)
+  if value == nil then
+    return nil, "The catalogue on the server is not valid JSON: " .. (err:gsub("^json: ", ""))
+  end
+  local catalogue, warnings = M.catalogue.validate(value)
+  if not catalogue then
+    return nil, "The catalogue on the server was rejected: " .. warnings
+  end
+  return catalogue, warnings, value
+end
+
+-- The text of the local catalogue cache: the decoded catalogue `value` as the
+-- server at `url` served it, with that URL. Returns the text, or nil and an
+-- error.
+function M.catalogue.cache_text(url, value)
+  return M.json.encode(M.json.object({ url = url, catalogue = value }))
+end
+
+-- Reads the local cache text for the server at `url`. Returns the validated
+-- catalogue and its warnings, or nil when the cache is unusable: unreadable,
+-- from another server URL, or rejected by validation. Never raises.
+function M.catalogue.read_cache(text, url)
+  local cache = M.json.decode(text)
+  if not is_json_object(cache) or cache.url ~= url then
+    return nil
+  end
+  local catalogue, warnings = M.catalogue.validate(cache.catalogue)
+  if not catalogue then
+    return nil
+  end
+  return catalogue, warnings
+end
+
 -- Builds the match index of a validated catalogue: `norm(m)` for every match
 -- string `m` of every entry, to that entry; when two entries share a
 -- normalized string the first keeps it. Returns lookup(normalized) → entry or
