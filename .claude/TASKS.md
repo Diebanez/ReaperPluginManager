@@ -76,7 +76,7 @@ Feature: plugin-catalogue
 
 ## 8. Update documentation for feature `plugin-catalogue`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md, README.md
 Preconditions: 5, 6, 7

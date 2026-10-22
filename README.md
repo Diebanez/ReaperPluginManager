@@ -48,6 +48,15 @@ yourself, in REAPER, with a format you have. This happens in two cases:
 Formats loaded on Windows: VST2, VST3, CLAP, LV2 and DX. On macOS: VST2,
 VST3, AU, CLAP and LV2.
 
+### When the server cannot be reached
+
+Every check fetches the catalogue from the server and keeps a copy of it on
+your machine. When the server cannot be reached, or the catalogue on it cannot
+be read, the check uses the cached copy, so a project can still be checked
+offline. The copy belongs to the server address it came from: after you change
+the address, it is not used. With no server and no cached copy, the check
+finds no catalogue and nothing is offered for installing.
+
 ## Settings
 
 The settings live in `config.ini`, in the `ReaperPluginManager` folder of

@@ -31,6 +31,69 @@ Each machine uses one server account. Give members a read-only account and
 yourself one allowed to upload, rename and delete files and, over FTP, to
 create folders.
 
+## The catalogue format
+
+`manifest.json` is a JSON file in UTF-8, read as catalogue format version 1;
+`manifest.example.json` in this folder shows every part described below. At
+the top level it holds two keys:
+
+- `version` (required) — the catalogue format version: `1`.
+- `plugins` (required) — an array of entries, one per installer you offer.
+
+Each entry in `plugins` holds:
+
+- `id` (required) — a short identifier, unique in the catalogue and without
+  spaces, such as `acme-compressor`.
+- `name` (required) — the plugin's name, shown to members.
+- `vendor` — the maker's name, shown to members.
+- `note` — a short remark shown beside the name, such as `VST3 only`.
+- `match` (required) — an array of the strings that identify the plugin in
+  projects; see *Match strings* below.
+- `installers` — an object with up to two keys, `windows` and `macos`, each
+  describing the installer for that platform. A platform left out, or whose
+  `file` is empty, has no installer: members on it see the plugin listed
+  without one.
+- `activation` — how a member activates the plugin's licence after
+  installing it. Leave it out for a plugin that needs no activation.
+
+Each installer object holds:
+
+- `file` (required) — the installer's path, relative to the server root and
+  written with `/`, such as `acme/AcmeCompressor-2.1.0-win.exe`.
+- `type` — how the file is installed: `exe`, `msi` or `zip` on Windows,
+  `pkg`, `dmg` or `zip` on macOS. When it is left out, the file extension
+  decides, so set it only for a file whose extension is not one of these.
+- `args` — Windows only: the installer's silent-install switches for an
+  `exe`, such as `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`, or the extra
+  properties for an `msi`.
+- `sha256` — the file's SHA-256 checksum in hexadecimal. When present, a
+  download whose checksum differs is not installed.
+- `dest` — for an archive, where its plugins are put: `vst3`, `vst2`, `clap`,
+  `au` or an absolute folder path. When it is left out, each plugin goes to
+  the standard folder for its file type.
+
+### One package for both platforms
+
+When one file installs the plugin on both Windows and macOS — typically a zip
+holding the plugin for each — name the same `file` under both `windows` and
+`macos`, as the `acme-reverb` entry of `manifest.example.json` does. The file
+is stored once on the server.
+
+### How the manager reads the catalogue
+
+Each project check downloads `manifest.json` and keeps a copy of it on the
+member's machine. When the server cannot be reached, or its catalogue cannot
+be used, the manager falls back to that copy; with neither, nothing is
+offered for installing.
+
+- A file that is not valid JSON, or whose `version` is missing or higher than
+  the manager understands, is refused whole, and the member's copy of the last
+  good catalogue stays in use.
+- Within an accepted catalogue, an entry without an `id`, a `name` or a
+  `match` array, with spaces in its `id`, or repeating an earlier entry's
+  `id`, is skipped and reported in REAPER's console; the other entries stay
+  usable.
+
 ## Match strings
 
 Each catalogue entry lists in `match` the strings that identify its plugin
