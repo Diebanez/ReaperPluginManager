@@ -58,10 +58,10 @@ Tasks: 20, 21, 22
 
 ## install-helper-windows — Windows install helper
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/install-helper-windows.md
 Source: product-design.md § Plugin installation
-Tasks: none
+Tasks: 23, 24, 25
 
 ---
 

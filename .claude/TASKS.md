@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 22
+Last task number: 25
 
 ---
 
@@ -221,5 +221,35 @@ Target: claude
 Files: README.md
 Preconditions: 20, 21
 Feature: plugin-installation
+
+---
+
+## 23. Windows helper core: elevation, download, verify, exe/msi
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-install.ps1
+Preconditions: 20
+Feature: install-helper-windows
+
+---
+
+## 24. Windows helper zip routing
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-install.ps1
+Preconditions: 23
+Feature: install-helper-windows
+
+---
+
+## 25. Update documentation for feature `install-helper-windows`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 23, 24
+Feature: install-helper-windows
 
 ---
