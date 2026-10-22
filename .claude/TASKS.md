@@ -306,7 +306,7 @@ Feature: licence-activation
 
 ## 31. Saved serials and clipboard copy
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/helpers/rpm-secret.ps1, Scripts/ReaperPluginManager/helpers/rpm-secret.sh
 Preconditions: 2, 30

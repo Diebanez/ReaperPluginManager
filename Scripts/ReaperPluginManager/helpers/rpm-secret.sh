@@ -4,11 +4,14 @@
 # `security` tool, keyed by service and account. Targets bash 3.2.
 #
 #   rpm-secret.sh get    <service> <account>          prints "OK <hex>" or "NOTFOUND"
+#   rpm-secret.sh exists <service> <account>          prints "OK" or "NOTFOUND"
+#   rpm-secret.sh copy   <service> <account>          prints "OK" or "NOTFOUND"
 #   rpm-secret.sh set    <service> <account> <infile> prints "OK"
 #   rpm-secret.sh delete <service> <account>          prints "OK", also when absent
 #
 # Any failure prints "ERROR <reason>". set reads the secret from <infile>,
-# which is deleted whatever happens; get prints it as lowercase hex. The
+# which is deleted whatever happens; get prints it as lowercase hex; copy
+# pipes it from `security ... -w` to `pbcopy` and prints nothing of it. The
 # secret never reaches a command line: it is written through `security -i`,
 # which reads its command, the password as -X hex included, from stdin.
 # Exit codes: 0 OK, 1 ERROR, 2 NOTFOUND.
@@ -28,7 +31,7 @@ to_hex() {
 }
 
 case "$action" in
-  get|set|delete) ;;
+  get|exists|copy|set|delete) ;;
   *)
     [ -n "$infile" ] && rm -f -- "$infile"
     fail "unknown action: $action"
@@ -60,6 +63,23 @@ case "$action" in
     fi
     [ $rc -eq 0 ] || fail "security find-generic-password exited with code $rc"
     echo "OK $(to_hex "$secret")"
+    ;;
+  exists|copy)
+    security find-generic-password -s "$service" -a "$account" >/dev/null 2>&1
+    rc=$?
+    if [ $rc -eq 44 ]; then
+      echo "NOTFOUND"
+      exit 2
+    fi
+    [ $rc -eq 0 ] || fail "security find-generic-password exited with code $rc"
+    if [ "$action" = "copy" ]; then
+      security find-generic-password -s "$service" -a "$account" -w 2>/dev/null \
+        | tr -d '\n' | pbcopy
+      status=("${PIPESTATUS[@]}")
+      [ "${status[0]}" -eq 0 ] || fail "security find-generic-password exited with code ${status[0]}"
+      [ "${status[2]}" -eq 0 ] || fail "pbcopy exited with code ${status[2]}"
+    fi
+    echo "OK"
     ;;
   set)
     [ -n "$secret" ] || fail "empty secret"

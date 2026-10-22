@@ -3,16 +3,19 @@
 # Targets Windows PowerShell 5.1; ASCII-only.
 #
 #   -Action get    -Store <file>               prints "OK <hex>" or "NOTFOUND"
+#   -Action exists -Store <file>               prints "OK" or "NOTFOUND"
+#   -Action copy   -Store <file>               prints "OK" or "NOTFOUND"
 #   -Action set    -Store <file> -InFile <file> prints "OK"
 #   -Action delete -Store <file>               prints "OK", also when absent
 #
 # Any failure prints "ERROR <reason>". The secret travels as raw bytes: set
 # reads it from -InFile, which is deleted whatever happens; get prints it as
-# lowercase hex, so no console encoding ever touches it. Exit codes: 0 OK,
-# 1 ERROR, 2 NOTFOUND.
+# lowercase hex, so no console encoding ever touches it. copy puts the secret,
+# read as UTF-8 text, on the clipboard and prints nothing of it. Exit codes:
+# 0 OK, 1 ERROR, 2 NOTFOUND.
 
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('get', 'set', 'delete')][string]$Action,
+  [Parameter(Mandatory = $true)][ValidateSet('get', 'exists', 'copy', 'set', 'delete')][string]$Action,
   [Parameter(Mandatory = $true)][string]$Store,
   [string]$InFile
 )
@@ -42,6 +45,28 @@ try {
       foreach ($b in $plain) { [void]$sb.Append($b.ToString('x2')) }
       Clear-Bytes $plain
       Write-Output ('OK ' + $sb.ToString())
+      exit 0
+    }
+    'exists' {
+      if (-not [IO.File]::Exists($Store)) {
+        Write-Output 'NOTFOUND'
+        exit 2
+      }
+      Write-Output 'OK'
+      exit 0
+    }
+    'copy' {
+      if (-not [IO.File]::Exists($Store)) {
+        Write-Output 'NOTFOUND'
+        exit 2
+      }
+      $scope = Get-Scope
+      $blob = [IO.File]::ReadAllBytes($Store)
+      $plain = [System.Security.Cryptography.ProtectedData]::Unprotect($blob, $null, $scope)
+      $text = [Text.Encoding]::UTF8.GetString($plain)
+      Clear-Bytes $plain
+      Set-Clipboard -Value $text
+      Write-Output 'OK'
       exit 0
     }
     'set' {

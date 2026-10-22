@@ -164,13 +164,25 @@ local function write_private(path, text)
   return true
 end
 
--- Runs the platform helper and returns its result line: "OK [hex]",
--- "NOTFOUND" or "ERROR <reason>"; nil and a reason when it did not run.
-local function run_helper(action, host, user, infile)
+-- A secret-store key: `service` and `account` name the macOS Keychain item,
+-- and the Windows store file is named after both.
+local function store_key(service, account)
+  return { service = service, account = account }
+end
+
+-- The key of the server password of `user` on `host`.
+local function credential_key(host, user)
+  return store_key(SERVICE_PREFIX .. host, user)
+end
+
+-- Runs the platform helper on the secret under `key` and returns its result
+-- line: "OK [hex]", "NOTFOUND" or "ERROR <reason>"; nil and a reason when it
+-- did not run.
+local function run_helper(action, key, infile)
   local p = platform()
   local cmd
   if p == "windows" then
-    local store = M.data_dir() .. "secrets" .. SEP .. to_hex(SERVICE_PREFIX .. key_of(host, user)) .. ".bin"
+    local store = M.data_dir() .. "secrets" .. SEP .. to_hex(key.service .. "\n" .. key.account) .. ".bin"
     cmd = 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'
       .. helpers_dir() .. 'rpm-secret.ps1" -Action ' .. action .. ' -Store "' .. store .. '"'
     if infile then
@@ -178,7 +190,7 @@ local function run_helper(action, host, user, infile)
     end
   elseif p == "macos" then
     cmd = "/bin/bash " .. sh_quote(helpers_dir() .. "rpm-secret.sh") .. " " .. action
-      .. " " .. sh_quote(SERVICE_PREFIX .. host) .. " " .. sh_quote(user)
+      .. " " .. sh_quote(key.service) .. " " .. sh_quote(key.account)
     if infile then
       cmd = cmd .. " " .. sh_quote(infile)
     end
@@ -232,7 +244,7 @@ local function read_password(host, user)
   if cache[key] then
     return cache[key]
   end
-  local line, err = run_helper("get", host, user)
+  local line, err = run_helper("get", credential_key(host, user))
   if not line then
     return nil, store_error(err)
   elseif line == "NOTFOUND" then
@@ -279,7 +291,7 @@ function M.credentials.store(url, user, password)
   if not write_private(infile, password) then
     return false, store_error("cannot write the temporary file.")
   end
-  local line, err = run_helper("set", host, user, infile)
+  local line, err = run_helper("set", credential_key(host, user), infile)
   os.remove(infile)
   if not line then
     return false, store_error(err)
@@ -299,7 +311,7 @@ function M.credentials.remove(url, user)
   end
   local host = url_host(url) or ""
   cache[key_of(host, user)] = nil
-  local line, err = run_helper("delete", host, user)
+  local line, err = run_helper("delete", credential_key(host, user))
   if not line then
     return false, store_error(err)
   elseif line ~= "OK" then
@@ -1073,8 +1085,8 @@ end
 
 ---------------------------------------------------------------------------
 -- Licence activation: the entry's activation field, the record of the
--- entries still pending activation (`activation.ini`), and the walk-through
--- window that opens each vendor's app or page.
+-- entries still pending activation (`activation.ini`), the member's saved
+-- serials, and the walk-through window that opens each vendor's app or page.
 ---------------------------------------------------------------------------
 
 M.activation = {}
@@ -1151,6 +1163,93 @@ function M.activation.pending_for(installed_refs, catalogue)
     return {}
   end
   return core.activation.pending_among(installed_refs, catalogue, M.activation.pending())
+end
+
+-- Saved serials: the member's own serial of a catalogue entry, in the OS
+-- secret store under the entry id, apart from the server credential. Lua
+-- hands a serial to the store through a transient file and never reads one
+-- back: the clipboard copy is the helper's own.
+local SERIAL_SERVICE = "ReaperPluginManager-serial"
+local SERIAL_TITLE = "ReaperPluginManager - Save serial"
+
+-- Runs the helper's `action` on the serial of the entry with id `id` and
+-- returns "OK", "NOTFOUND", or nil and an error naming the store.
+local function serial_helper(action, id, infile)
+  local line, err = run_helper(action, store_key(SERIAL_SERVICE, id), infile)
+  if not line then
+    return nil, store_error(err)
+  elseif line:match("^ERROR") then
+    return nil, store_error(line:match("^ERROR (.*)$") or line)
+  end
+  return line:match("^OK") and "OK" or line
+end
+
+-- True when a serial is saved for the entry with id `id`, false when none
+-- is, or nil and an error naming the store.
+local function serial_saved(id)
+  local result, err = serial_helper("exists", id)
+  if not result then
+    return nil, err
+  end
+  return result == "OK"
+end
+
+-- Saves `serial` for the entry with id `id`. Returns true, or false and an
+-- error naming the store.
+local function save_serial(id, serial)
+  local infile = temp_path("secret")
+  if not write_private(infile, serial) then
+    return false, store_error("cannot write the temporary file.")
+  end
+  local result, err = serial_helper("set", id, infile)
+  os.remove(infile)
+  if result ~= "OK" then
+    return false, err or store_error("the serial was not saved.")
+  end
+  return true
+end
+
+-- After Done on a `serial` entry with no saved serial: a masked dialog offers
+-- to save one; Cancel or an empty field saves nothing.
+local function offer_serial(entry)
+  if type(entry.id) ~= "string" then
+    return
+  end
+  local saved, err = serial_saved(entry.id)
+  if saved == nil then
+    console("cannot check for a saved serial of " .. entry.id .. ": " .. one_line(err))
+    return
+  elseif saved then
+    return
+  end
+  local name = type(entry.name) == "string" and entry.name or entry.id
+  local ok, value = reaper.GetUserInputs(SERIAL_TITLE .. ": " .. name, 1,
+    "*Serial (Cancel: do not save),separator=\n,extrawidth=200", "")
+  local serial = ok and value:match("^%s*(.-)%s*$") or ""
+  if serial == "" then
+    return
+  end
+  local stored, store_err = save_serial(entry.id, serial)
+  if not stored then
+    reaper.ShowMessageBox("The serial was not saved.\n\n" .. store_err, SERIAL_TITLE, 0)
+  end
+end
+
+-- On Activate for a `serial` step: copies the entry's saved serial to the
+-- clipboard. Returns the line the window adds to the step's note, or nil
+-- when no serial is saved. The pending record is never touched.
+local function copy_serial(step)
+  local entry = step.method == "serial" and step.entries[1]
+  if not entry or type(entry.id) ~= "string" then
+    return nil
+  end
+  local result, err = serial_helper("copy", entry.id)
+  if result == "OK" then
+    return "Your saved serial is on the clipboard."
+  elseif not result then
+    return "Your saved serial was not copied: " .. one_line(err)
+  end
+  return nil
 end
 
 -- Opens `target`, an application path or a URL, without waiting: Windows
@@ -1374,11 +1473,17 @@ end
 local function click(state, label)
   local step = state.steps[state.index]
   if label == "Activate" then
-    state.note = activate_step(step)
+    local note, copied = activate_step(step), copy_serial(step)
+    state.note = copied and note .. "\n" .. copied or note
   elseif label == "Done" then
     local ok, err = M.activation.clear(step.entries)
     if not ok then
       console("cannot update the activation-pending record: " .. one_line(err))
+    end
+    if step.method == "serial" then
+      for _, entry in ipairs(step.entries) do
+        offer_serial(entry)
+      end
     end
     next_step(state)
   elseif label == "Later" then
@@ -1439,7 +1544,9 @@ end
 -- opens the walk-through for them. `on_close` runs when the window closes,
 -- so installation can then show its restart message; with nothing to
 -- activate it runs at once. Done clears a step's entries from the pending
--- record; Later and closing the window leave them pending.
+-- record and, for a `serial` entry with no saved serial, offers to save one;
+-- Later and closing the window leave them pending. Activate also copies a
+-- saved serial to the clipboard.
 function M.activation.after_install(entries, on_close)
   local needed = {}
   for _, entry in ipairs(entries or {}) do
