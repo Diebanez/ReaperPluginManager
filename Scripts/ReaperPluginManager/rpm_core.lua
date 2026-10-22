@@ -1562,4 +1562,114 @@ function M.transfer.parse_status(text)
   return result
 end
 
+---------------------------------------------------------------------------
+-- Install: the job file the helpers read and the status file they append to
+---------------------------------------------------------------------------
+
+M.install = {}
+
+-- A job field as text: absent or null is empty, and every tab, CR and LF
+-- becomes a space, so a field never breaks the line or the columns.
+local function job_field(v)
+  if v == nil or v == M.json.null then
+    return ""
+  end
+  return (tostring(v):gsub("[\t\r\n]", " "))
+end
+
+-- Returns the job file line, without its line ending, that installs the
+-- catalogue entry `entry` with its installer `installer` from the server at
+-- `base_url` (which ends with `/`): `id name type url sha256 args dest`,
+-- tab-separated, an absent field left empty. `url` is the installer `file` in
+-- URL form (`transfer.encode_path`) after `base_url`.
+function M.install.job_line(entry, installer, base_url)
+  return table.concat({
+    job_field(entry.id),
+    job_field(entry.name),
+    job_field(installer.type),
+    job_field(M.transfer.url(base_url, installer.file)),
+    job_field(installer.sha256),
+    job_field(installer.args),
+    job_field(installer.dest),
+  }, "\t")
+end
+
+-- Returns the job file text for `items`, each { entry, installer } (the shape
+-- of classify's installable groups): one line per item, each ending in `\n`.
+function M.install.job_text(items, base_url)
+  local lines = {}
+  for _, item in ipairs(items or {}) do
+    lines[#lines + 1] = M.install.job_line(item.entry, item.installer, base_url) .. "\n"
+  end
+  return table.concat(lines)
+end
+
+local ITEM_STEPS = { download = true, verify = true, install = true }
+
+-- Parses the status file text the helper appends to: `START <n>`,
+-- `ITEM <id> download|verify|install`, `OK <id>`, `FAIL <id> <message>`,
+-- `DONE <ok> <failed>`. Only lines ending in `\n` count (`\r\n` tolerated), so
+-- a line still being written waits for the next read; a leading BOM is
+-- ignored; `START` may appear twice (the Windows helper restarts elevated)
+-- and the last one wins; any other line is skipped. Returns { started, total,
+-- done, ok, failed, items, order }: `started` true once a `START` was seen,
+-- `total` the `n` of the last one, `done` true once `DONE` was seen with its
+-- `ok` and `failed` counts, `items` per id { state, message } with `state`
+-- the step under way (`download`, `verify`, `install`) or the outcome (`ok`,
+-- `failed`) and `message` the failure's, and `order` the ids in order of
+-- first appearance. An id with no line yet is queued. Never raises.
+function M.install.parse_status(text)
+  local result = { started = false, done = false, items = {}, order = {} }
+  text = tostring(text or "")
+  if text:sub(1, #BOM) == BOM then
+    text = text:sub(#BOM + 1)
+  end
+
+  local function set(id, state, message)
+    if not result.items[id] then
+      result.order[#result.order + 1] = id
+    end
+    result.items[id] = { state = state, message = message }
+  end
+
+  local pos = 1
+  while true do
+    local nl = text:find("\n", pos, true)
+    if not nl then
+      break
+    end
+    local line = text:sub(pos, nl - 1)
+    pos = nl + 1
+    if line:sub(-1) == "\r" then
+      line = line:sub(1, -2)
+    end
+
+    local word, rest = line:match("^(%u+)%s+(.-)%s*$")
+    if word == "START" and rest:match("^%d+$") then
+      result.started = true
+      result.total = tonumber(rest)
+    elseif word == "ITEM" then
+      local id, step = rest:match("^(%S+)%s+(%a+)$")
+      if id and ITEM_STEPS[step] then
+        set(id, step)
+      end
+    elseif word == "OK" and rest:match("^%S+$") then
+      set(rest, "ok")
+    elseif word == "FAIL" then
+      local id, message = rest:match("^(%S+)%s*(.*)$")
+      if id then
+        set(id, "failed", message)
+      end
+    elseif word == "DONE" then
+      local ok, failed = rest:match("^(%d+)%s+(%d+)$")
+      if ok then
+        result.done = true
+        result.ok = tonumber(ok)
+        result.failed = tonumber(failed)
+      end
+    end
+  end
+  return result
+end
+
 return M

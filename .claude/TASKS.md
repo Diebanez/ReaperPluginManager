@@ -196,7 +196,7 @@ Feature: project-watcher
 
 ## 20. Job file writer, URL encoding and status file reader
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: none
