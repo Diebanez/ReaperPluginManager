@@ -20,6 +20,9 @@ layer.
 | [features/plugin-catalogue.md](./features/plugin-catalogue.md) | The catalogue schema and version, the Lua JSON codec, fetch with cached fallback, the match index |
 | [features/plugin-detection.md](./features/plugin-detection.md) | Pure matching logic: project scan, normalization, installed-or-missing, catalogue association, classification |
 | [features/project-watcher.md](./features/project-watcher.md) | Automatic check on every project open, the check action, the single summary window and install hand-off |
+| [features/plugin-installation.md](./features/plugin-installation.md) | The helper contract (job, status, routing), starting and tracking an install run, summary, reopen after restart |
+| [features/install-helper-windows.md](./features/install-helper-windows.md) | The PowerShell 5.1 install helper: one UAC prompt, download, verify, exe/msi/zip install |
+| [features/install-helper-macos.md](./features/install-helper-macos.md) | The bash 3.2 install helper: download, verify, zip/dmg/pkg install, one password prompt |
 
 ## Features
 

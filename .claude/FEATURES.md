@@ -46,3 +46,30 @@ Source: product-design.md § Project check
 Tasks: none
 
 ---
+
+## plugin-installation — Install runs, helper contract and reopen
+
+Status: [NEW]
+Doc: .claude/domain/features/plugin-installation.md
+Source: product-design.md § Plugin installation
+Tasks: none
+
+---
+
+## install-helper-windows — Windows install helper
+
+Status: [NEW]
+Doc: .claude/domain/features/install-helper-windows.md
+Source: product-design.md § Plugin installation
+Tasks: none
+
+---
+
+## install-helper-macos — macOS install helper
+
+Status: [NEW]
+Doc: .claude/domain/features/install-helper-macos.md
+Source: product-design.md § Plugin installation
+Tasks: none
+
+---
