@@ -36,7 +36,7 @@ Feature: server-access
 
 ## 4. Update documentation for feature `server-access`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md, server/README.md
 Preconditions: 1, 2, 3

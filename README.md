@@ -47,3 +47,37 @@ yourself, in REAPER, with a format you have. This happens in two cases:
 
 Formats loaded on Windows: VST2, VST3, CLAP, LV2 and DX. On macOS: VST2,
 VST3, AU, CLAP and LV2.
+
+## Settings
+
+The settings live in `config.ini`, in the `ReaperPluginManager` folder of
+REAPER's resource path (*Options > Show REAPER resource path in
+explorer/finder*). The Setup action writes the server address, user, TLS
+level and automatic check; set the other keys by editing the file, which keeps
+every key and comment Setup does not change. A missing key, or a value the
+manager does not accept, takes its default. Comments start with `;` or `#`.
+
+| Section | Key | Values | Default |
+| --- | --- | --- | --- |
+| `[server]` | `url` | The server address, starting with its scheme, such as `ftps://example.com/plugins/`; a missing final `/` is added | empty |
+| `[server]` | `user` | The server account's user name; empty connects anonymously | empty |
+| `[server]` | `tls` | `required` (the connection must be encrypted), `try` (encrypted when the server offers it) or `off` | `required` |
+| `[server]` | `insecure` | `1` accepts a server certificate that is not trusted, such as a self-signed one; `0` refuses it | `0` |
+| `[install]` | `vst2_dir` | Windows only: the folder where VST2 `.dll` files unpacked from a zip installer are put | empty |
+| `[check]` | `auto` | `1` checks every project when it is opened; `0` checks only on demand | `1` |
+| `[check]` | `notify_unknown` | `1` lists the plugins that are not in the catalogue; `0` hides that group | `1` |
+
+### The server password
+
+The server password is never written to `config.ini`. Setup keeps it in your
+system's secret store: on Windows encrypted for your Windows account, under
+the `secrets` folder beside `config.ini`; on macOS in your default Keychain, as
+an item named `ReaperPluginManager:<server host>`. The manager reads it once
+per REAPER session and hands it to `curl` through a credentials file that
+exists only while a transfer runs, so it never appears on a command line. A
+password cannot contain spaces, tabs or line breaks.
+
+Each machine uses one server account, for checking projects, installing and
+publishing alike. Members use a read-only account; the maintainer uses an
+account that can write, and a write attempted with a read-only account fails
+with the server's own error.

@@ -5,6 +5,32 @@ catalogue on the group's server. The catalogue is the file `manifest.json` at
 the server root; `manifest.example.json` in this folder is a complete example
 to start from.
 
+## Server address
+
+Every machine reaches the server through the address in its settings (the
+`url` key described in the member guide, `README.md` at the repository root).
+The address starts with one of these schemes:
+
+- `ftp://` — FTP. The `tls` setting decides whether the connection is
+  upgraded to TLS (explicit TLS); at the default, `required`, a server that
+  does not offer TLS is refused.
+- `ftps://` — FTP over implicit TLS.
+- `https://` — a web server.
+- `file://` — a folder, local, on a network share or cloud-synced:
+  `file:///C:/Plugins/`, `file:///Users/me/Dropbox/Plugins/` or
+  `file://fileserver/share/Plugins/`.
+
+Fetching the catalogue and downloading installers work with every scheme.
+Publishing the catalogue writes to the server — it uploads, renames and
+deletes files — and works with FTP, FTPS and `file://` servers as they are,
+but with an HTTPS server only when it speaks WebDAV: uploads are HTTP `PUT`,
+renames WebDAV `MOVE` and deletes WebDAV `DELETE`. A plain HTTPS server
+refuses them, and the manager reports that writing over HTTPS needs WebDAV.
+
+Each machine uses one server account. Give members a read-only account and
+yourself one allowed to upload, rename and delete files and, over FTP, to
+create folders.
+
 ## Match strings
 
 Each catalogue entry lists in `match` the strings that identify its plugin
