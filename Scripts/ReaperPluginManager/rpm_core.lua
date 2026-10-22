@@ -1245,6 +1245,116 @@ function M.classify(missing_refs, installed, lookup, platform)
 end
 
 ---------------------------------------------------------------------------
+-- Licence activation: the entry's activation field and the pending record
+---------------------------------------------------------------------------
+
+M.activation = {}
+
+local ACTIVATION_METHODS = { none = true, ["vendor-app"] = true, serial = true, ["sign-in"] = true }
+
+local function text_or_nil(v)
+  return has_text(v) and trim(v) or nil
+end
+
+-- The vendor app of one platform as { name, path } — its display name and
+-- expected location — or nil when the field holds neither.
+local function activation_app(app)
+  if not is_json_object(app) then
+    return nil
+  end
+  local name, path = text_or_nil(app.name), text_or_nil(app.path)
+  if not name and not path then
+    return nil
+  end
+  return { name = name, path = path }
+end
+
+-- Reads the `activation` field of the catalogue entry `entry`. Returns
+-- { method, app = { windows, macos }, url, instructions }: `method` is
+-- `none`, `vendor-app`, `serial` or `sign-in`, `none` when absent; each
+-- `app` platform is { name, path } or nil; `url` and `instructions` are nil
+-- when empty. A method this tool does not know reads as `none`, with the
+-- warning to report as a second value. Never raises.
+function M.activation.read(entry)
+  local field = is_json_object(entry) and entry.activation or nil
+  if not is_json_object(field) then
+    field = {}
+  end
+  local app = is_json_object(field.app) and field.app or {}
+  local result = {
+    method = "none",
+    app = { windows = activation_app(app.windows), macos = activation_app(app.macos) },
+    url = text_or_nil(field.url),
+    instructions = text_or_nil(field.instructions),
+  }
+  local method, warning = field.method, nil
+  if type(method) == "string" then
+    method = trim(method)
+  end
+  if ACTIVATION_METHODS[method] then
+    result.method = method
+  elseif method ~= nil and method ~= M.json.null and method ~= "" then
+    local id = is_json_object(entry) and has_text(entry.id) and entry.id or "?"
+    warning = ('entry "%s": unknown activation method "%s", read as "none"')
+      :format(id, tostring(method))
+  end
+  return result, warning
+end
+
+-- Parses the pending record text (`activation.ini`): one `<entry id>=<date>`
+-- line per pending entry. Returns { [id] = date }; ids keep their case.
+-- Never raises.
+function M.activation.parse_pending(text)
+  local record = {}
+  if type(text) ~= "string" then
+    return record
+  end
+  if text:sub(1, 3) == BOM then
+    text = text:sub(4)
+  end
+  for _, raw in ipairs(split_lines(text)) do
+    local item = parse_line(raw)
+    if item and item.key then
+      record[item.key] = item.value
+    end
+  end
+  return record
+end
+
+-- The pending record text for `record` ({ [id] = date }), ids sorted.
+function M.activation.pending_text(record)
+  local ids = {}
+  for id in pairs(record or {}) do
+    ids[#ids + 1] = id
+  end
+  table.sort(ids)
+  local lines = {}
+  for _, id in ipairs(ids) do
+    lines[#lines + 1] = id .. "=" .. encode_value(record[id]) .. "\n"
+  end
+  return table.concat(lines)
+end
+
+-- Returns the catalogue entries in `record` ({ [id] = date }) that any of
+-- `installed_refs` (each { name, ident }) associates with in `catalogue`, in
+-- order of first association, each once. Never raises.
+function M.activation.pending_among(installed_refs, catalogue, record)
+  local out, seen = {}, {}
+  if type(record) ~= "table" or next(record) == nil then
+    return out
+  end
+  local lookup = M.catalogue.index(catalogue)
+  for _, ref in ipairs(installed_refs or {}) do
+    local entry = associate(ref, lookup)
+    if entry and not seen[entry] and record[entry.id] then
+      seen[entry] = true
+      out[#out + 1] = entry
+    end
+  end
+  return out
+end
+
+---------------------------------------------------------------------------
 -- Command lines
 ---------------------------------------------------------------------------
 

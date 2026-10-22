@@ -371,8 +371,9 @@ end
 
 -- The prefixes of the transient files a crash can leave in the data folder:
 -- credentials files, secret hand-offs, curl error output, background upload
--- status files, catalogue downloads and cache writes, and draft writes.
-local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload", "catalogue", "draft" }
+-- status files, catalogue downloads and cache writes, draft writes and
+-- pending-record writes.
+local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload", "catalogue", "draft", "activation" }
 
 -- Removes the transient files a crash left in the data folder. Runs once per
 -- REAPER session, at the first load of this module.
@@ -1071,6 +1072,87 @@ function M.draft.discard()
 end
 
 ---------------------------------------------------------------------------
+-- Licence activation: the entry's activation field, and the record of the
+-- entries still pending activation (`activation.ini`).
+---------------------------------------------------------------------------
+
+M.activation = {}
+
+function M.activation.path()
+  return M.data_dir() .. "activation.ini"
+end
+
+local activation_warned = {}
+
+-- The activation field of the catalogue entry `entry`, as
+-- `core.activation.read` returns it. An unknown method reads as `none` and is
+-- reported to the REAPER console once per entry and method.
+function M.activation.read(entry)
+  local activation, warning = core.activation.read(entry)
+  if warning and not activation_warned[warning] then
+    activation_warned[warning] = true
+    console("catalogue " .. warning)
+  end
+  return activation
+end
+
+-- The pending record as { [entry id] = date recorded }; empty when there is
+-- none or it cannot be read.
+function M.activation.pending()
+  return core.activation.parse_pending(read_file(M.activation.path()))
+end
+
+local function save_pending(record)
+  return write_replace(M.activation.path(), core.activation.pending_text(record), "activation")
+end
+
+-- Records the catalogue entries `entries` as pending activation, dated
+-- today; an entry already pending keeps its date. Called only for the entries
+-- entering the walk-through, so a plugin the tool did not install is never
+-- tracked. Returns true, or false and an error.
+function M.activation.mark_pending(entries)
+  local record = M.activation.pending()
+  local today = os.date("%Y-%m-%d")
+  local changed = false
+  for _, entry in ipairs(entries or {}) do
+    if type(entry) == "table" and type(entry.id) == "string" and not record[entry.id] then
+      record[entry.id] = today
+      changed = true
+    end
+  end
+  if not changed then
+    return true
+  end
+  return save_pending(record)
+end
+
+-- Removes the catalogue entries `entries` from the pending record. Returns
+-- true, or false and an error.
+function M.activation.clear(entries)
+  local record = M.activation.pending()
+  local changed = false
+  for _, entry in ipairs(entries or {}) do
+    if type(entry) == "table" and record[entry.id] then
+      record[entry.id] = nil
+      changed = true
+    end
+  end
+  if not changed then
+    return true
+  end
+  return save_pending(record)
+end
+
+-- Returns the pending entries of `catalogue` that any of `installed_refs`
+-- (each { name, ident }) associates with; an empty list with no catalogue.
+function M.activation.pending_for(installed_refs, catalogue)
+  if not catalogue then
+    return {}
+  end
+  return core.activation.pending_among(installed_refs, catalogue, M.activation.pending())
+end
+
+---------------------------------------------------------------------------
 -- Project check: installed plugins, the saved project file, the catalogue
 -- and the classification, assembled into one result.
 ---------------------------------------------------------------------------
@@ -1109,17 +1191,6 @@ function M.check.project_path(proj)
     end
     i = i + 1
   end
-end
-
--- The activation-pending entries among `installed_refs`, through
--- licence-activation's `M.activation.pending_for`; an empty list while that
--- feature is absent or there is no catalogue.
-local function pending_entries(installed_refs, catalogue)
-  local activation = M.activation
-  if not catalogue or type(activation) ~= "table" or type(activation.pending_for) ~= "function" then
-    return {}
-  end
-  return activation.pending_for(installed_refs, catalogue) or {}
 end
 
 -- Checks the project `proj` (nil for the current project) as saved on disk.
@@ -1170,7 +1241,7 @@ function M.check.run(proj)
     missing = missing,
     installed_refs = installed_refs,
     groups = core.classify(missing, installed, lookup, p),
-    pending = pending_entries(installed_refs, catalogue),
+    pending = M.activation.pending_for(installed_refs, catalogue),
     catalogue = catalogue,
     source = source,
     reason = reason,

@@ -286,7 +286,7 @@ Feature: install-helper-macos
 
 ## 29. Activation field, pending record and pending query
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 6
