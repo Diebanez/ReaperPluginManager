@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 12
+Last task number: 15
 
 ---
 
@@ -121,5 +121,35 @@ Target: claude
 Files: server/README.md, README.md
 Preconditions: 9, 10, 11
 Feature: plugin-detection
+
+---
+
+## 13. Setup dialog, validation and saving
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_Setup.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 1, 2
+Feature: setup-action
+
+---
+
+## 14. Action registration, startup hook and connection test
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_Setup.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 7, 13, 18
+Feature: setup-action
+
+---
+
+## 15. Update documentation for feature `setup-action`
+
+Status: [MISSING]
+Target: claude
+Files: README.md
+Preconditions: 13, 14
+Feature: setup-action
 
 ---

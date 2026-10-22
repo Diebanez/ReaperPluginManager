@@ -13,10 +13,10 @@ Tasks: 1, 2, 3, 4
 
 ## setup-action — The setup action
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/setup-action.md
 Source: product-design.md § Setup
-Tasks: none
+Tasks: 13, 14, 15
 
 ---
 
