@@ -1987,4 +1987,417 @@ function M.check.run(proj)
   }
 end
 
+---------------------------------------------------------------------------
+-- Summary window: one scrollable gfx window per check listing every finding
+-- without truncation, the install hand-off and the activation reminders.
+---------------------------------------------------------------------------
+
+local SUMMARY_TITLE = "ReaperPluginManager - Project check"
+local SUMMARY_W = 600
+local ACTIVATE_W = 80
+local SCROLLBAR_W = 6
+local PLATFORM_NAMES = { windows = "Windows", macos = "macOS" }
+
+-- gfx.getchar codes of the scrolling keys.
+local KEY_UP, KEY_DOWN = 30064, 1685026670
+local KEY_PGUP, KEY_PGDN = 1885828464, 1885824110
+local KEY_HOME, KEY_END = 1752132965, 6647396
+
+-- The open summary, or nil: { result, groups, show_unknown, scroll, page,
+-- rects, gen, window, pressed, was_down }.
+local summary = nil
+
+local function text_of(v)
+  return type(v) == "string" and v:match("^%s*(.-)%s*$") or ""
+end
+
+-- `Name (Vendor)` of a catalogue entry; the vendor is left out when empty.
+local function entry_label(entry)
+  local name = text_of(entry.name)
+  if name == "" then
+    name = tostring(entry.id)
+  end
+  local vendor = text_of(entry.vendor)
+  return vendor ~= "" and (name .. " (" .. vendor .. ")") or name
+end
+
+-- `Name (Vendor) [FORMAT] ×instances` of a classified reference item.
+local function ref_label(item)
+  local _, base = core.split_name(item.ref.name)
+  if base == "" then
+    base = tostring(item.ref.name)
+  end
+  local format = item.format and item.format:upper() or "?"
+  return ("%s [%s] ×%d"):format(base, format, item.ref.count or 1)
+end
+
+-- The window's groups for the checked `result`, each { title, items }, an
+-- item being { text, entry } with `entry` set only on an activation-pending
+-- item. Empty groups are left out, and "Not in the catalogue" unless
+-- `show_unknown`.
+local function summary_groups(result, show_unknown)
+  local groups = {}
+  local function add(title, items)
+    if #items > 0 then
+      groups[#groups + 1] = { title = ("%s (%d)"):format(title, #items), items = items }
+    end
+  end
+  local g = result.groups
+
+  local to_install = {}
+  for _, it in ipairs(g.installable) do
+    local note = text_of(it.entry.note)
+    local text = entry_label(it.entry)
+    to_install[#to_install + 1] = { text = note ~= "" and (text .. " — " .. note) or text }
+  end
+  add("To install", to_install)
+
+  local no_installer, seen = {}, {}
+  for _, it in ipairs(g.no_installer) do
+    if not seen[it.entry] then
+      seen[it.entry] = true
+      no_installer[#no_installer + 1] = { text = entry_label(it.entry) }
+    end
+  end
+  add("No installer for " .. (PLATFORM_NAMES[result.platform] or "this platform"), no_installer)
+
+  if show_unknown then
+    local unknown = {}
+    for _, it in ipairs(g.unknown) do
+      unknown[#unknown + 1] = { text = ref_label(it) }
+    end
+    add("Not in the catalogue", unknown)
+  end
+
+  local replace = {}
+  local platform_name = PLATFORM_NAMES[result.platform] or "this system"
+  for _, it in ipairs(g.replace) do
+    local why = it.reason == "present" and "the plugin is installed in another format"
+      or ("this format does not load on " .. platform_name)
+    replace[#replace + 1] = { text = ref_label(it) .. " — " .. why }
+  end
+  add("Instances to replace by hand", replace)
+
+  local pending = {}
+  for _, entry in ipairs(result.pending or {}) do
+    pending[#pending + 1] = { text = entry_label(entry), entry = entry }
+  end
+  add("Activation pending", pending)
+  return groups
+end
+
+local function summary_heading(result)
+  local name = result.path:match("([^/\\]+)$") or result.path
+  local missing = #result.missing
+  if missing == 0 then
+    return name .. ": every plugin is installed"
+  end
+  return ("%s: %d of %d plugins not installed"):format(name, missing, result.total)
+end
+
+-- The banner line when the server catalogue was not used, or nil.
+local function summary_banner(result)
+  local reason = result.reason and one_line(result.reason) or "no reason was given"
+  if result.source == "cache" then
+    return "The server catalogue could not be used, so the cached one was. " .. reason
+  elseif result.source == "none" then
+    return "No catalogue is available, so nothing can be installed. " .. reason
+  end
+  return nil
+end
+
+-- The scrolling rows of `groups` wrapped to `width`, each { text, indent,
+-- header, entry }: a group's title, then its items, a blank row between
+-- groups. `entry` marks the first row of an activation-pending item, which
+-- carries an Activate button.
+local function summary_rows(groups, width)
+  local rows = {}
+  for gi, group in ipairs(groups) do
+    if gi > 1 then
+      rows[#rows + 1] = { text = "" }
+    end
+    rows[#rows + 1] = { text = group.title, header = true, indent = 0 }
+    for _, item in ipairs(group.items) do
+      local w = width - 12 - (item.entry and ACTIVATE_W + 8 or 0)
+      for i, line in ipairs(wrap(item.text, w)) do
+        rows[#rows + 1] = { text = line, indent = i == 1 and 12 or 24, entry = i == 1 and item.entry or nil }
+      end
+    end
+  end
+  return rows
+end
+
+-- The bottom buttons, right-aligned: "Install N plugins" when anything is
+-- installable, then "Close".
+local function summary_buttons(state)
+  local labels = {}
+  local n = #state.result.groups.installable
+  if n > 0 then
+    labels[#labels + 1] = { key = "install", label = ("Install %d plugin%s"):format(n, n == 1 and "" or "s") }
+  end
+  labels[#labels + 1] = { key = "close", label = "Close" }
+  local rects, x = {}, gfx.w - PAD
+  for i = #labels, 1, -1 do
+    local w = math.max(BUTTON_W, gfx.measurestr(labels[i].label) + 24)
+    x = x - w
+    rects[#rects + 1] = { key = labels[i].key, label = labels[i].label, x = x, y = gfx.h - PAD - BUTTON_H, w = w, h = BUTTON_H }
+    x = x - 8
+  end
+  return rects
+end
+
+local function hit_rect(rects, mx, my)
+  for _, r in ipairs(rects or {}) do
+    if mx >= r.x and mx < r.x + r.w and my >= r.y and my < r.y + r.h then
+      return r
+    end
+  end
+  return nil
+end
+
+local function draw_button(r, hover)
+  local shade = hover and 0.38 or 0.28
+  gfx.set(shade, shade, shade + 0.02)
+  gfx.rect(r.x, r.y, r.w, r.h, 1)
+  gfx.set(0.92, 0.92, 0.94)
+  local tw, th = gfx.measurestr(r.label)
+  gfx.x, gfx.y = r.x + (r.w - tw) / 2, r.y + (r.h - th) / 2
+  gfx.drawstr(r.label)
+end
+
+-- Draws the window and returns its clickable rectangles: the bottom buttons
+-- and the Activate buttons of the visible rows.
+local function draw_summary(state)
+  local width = gfx.w - 2 * PAD
+  gfx.set(0.15, 0.15, 0.16)
+  gfx.rect(0, 0, gfx.w, gfx.h, 1)
+
+  gfx.setfont(2, "Arial", 18, string.byte("b"))
+  gfx.set(0.92, 0.92, 0.94)
+  local top = draw_lines(wrap(summary_heading(state.result), width), PAD) + 4
+  gfx.setfont(1, "Arial", 15)
+  local banner = summary_banner(state.result)
+  if banner then
+    gfx.set(0.95, 0.75, 0.35)
+    top = draw_lines(wrap(banner, width), top) + 4
+  end
+  top = top + 4
+
+  local rects = summary_buttons(state)
+  local bottom = rects[1].y - 8
+  local _, th = gfx.measurestr("Ag")
+  local lh = th + 6
+  local list_w = width - SCROLLBAR_W - 6
+  local rows = summary_rows(state.groups, list_w)
+  local visible = math.max(1, math.floor((bottom - top) / lh))
+  local max_scroll = math.max(0, #rows - visible)
+  state.page = visible
+  state.scroll = math.max(0, math.min(state.scroll, max_scroll))
+
+  local mx, my = gfx.mouse_x, gfx.mouse_y
+  for i = 1, visible do
+    local row = rows[state.scroll + i]
+    if not row then
+      break
+    end
+    local y = top + (i - 1) * lh
+    if row.header then
+      gfx.setfont(3, "Arial", 15, string.byte("b"))
+      gfx.set(0.92, 0.92, 0.94)
+    else
+      gfx.setfont(1)
+      gfx.set(0.8, 0.8, 0.82)
+    end
+    gfx.x, gfx.y = PAD + (row.indent or 0), y + 3
+    gfx.drawstr(row.text)
+    gfx.setfont(1)
+    if row.entry then
+      local r = { key = "activate:" .. (state.scroll + i), entry = row.entry, label = "Activate",
+        x = PAD + list_w - ACTIVATE_W, y = y, w = ACTIVATE_W, h = lh - 1 }
+      rects[#rects + 1] = r
+      draw_button(r, hit_rect({ r }, mx, my) ~= nil)
+    end
+  end
+
+  if max_scroll > 0 then
+    local track_h = visible * lh
+    local thumb_h = math.max(20, track_h * visible / #rows)
+    local thumb_y = top + (track_h - thumb_h) * state.scroll / max_scroll
+    local x = PAD + width - SCROLLBAR_W
+    gfx.set(0.22, 0.22, 0.24)
+    gfx.rect(x, top, SCROLLBAR_W, track_h, 1)
+    gfx.set(0.45, 0.45, 0.48)
+    gfx.rect(x, thumb_y, SCROLLBAR_W, thumb_h, 1)
+  end
+
+  for _, r in ipairs(rects) do
+    if not r.entry then
+      draw_button(r, hit_rect({ r }, mx, my) ~= nil)
+    end
+  end
+  gfx.update()
+  return rects
+end
+
+local function open_summary_window(state)
+  local n = 0
+  for _, group in ipairs(state.groups) do
+    n = n + #group.items + 2
+  end
+  local h = math.max(260, math.min(560, 150 + 22 * n))
+  gfx.quit()
+  gfx.init(SUMMARY_TITLE, SUMMARY_W, h)
+  state.window = true
+  state.rects, state.pressed, state.was_down = {}, nil, false
+end
+
+local function close_summary(state)
+  if state.window then
+    gfx.quit()
+    state.window = false
+  end
+  if summary == state then
+    summary = nil
+  end
+end
+
+local summary_loop
+
+-- After the walk-through opened from the summary closes: the pending list is
+-- asked again, so entries marked Done leave it, and the window reopens unless
+-- another check replaced it or nothing is left to list.
+local function reopen_summary(state)
+  if summary ~= state then
+    return
+  end
+  state.result.pending = M.activation.pending_for(state.result.installed_refs, state.result.catalogue)
+  state.groups = summary_groups(state.result, state.show_unknown)
+  if #state.groups == 0 then
+    summary = nil
+    return
+  end
+  open_summary_window(state)
+  summary_loop(state)
+end
+
+-- Acts on a clicked rectangle. Returns false when the summary's loop ends:
+-- the window was closed or handed to the install run or the walk-through.
+local function summary_click(state, r)
+  if r.key == "close" then
+    close_summary(state)
+    return false
+  elseif r.key == "install" then
+    close_summary(state)
+    local ok, err = M.install.start(state.result.groups.installable)
+    if not ok then
+      reaper.ShowMessageBox(err, SUMMARY_TITLE, 0)
+    end
+    return false
+  elseif r.entry then
+    state.window = false
+    local ok, err = pcall(M.activation.activate, { r.entry }, function()
+      reopen_summary(state)
+    end)
+    if not ok then
+      console("licence activation failed: " .. one_line(err))
+      reopen_summary(state)
+    end
+    return false
+  end
+  return true
+end
+
+-- One defer cycle: keys, wheel and clicks, then the drawing. Returns false
+-- when the loop ends.
+local function summary_cycle(state)
+  local c = gfx.getchar()
+  if c < 0 or c == 27 then
+    close_summary(state)
+    return false
+  end
+  local page = math.max(1, (state.page or 1) - 1)
+  if c == KEY_UP then
+    state.scroll = state.scroll - 1
+  elseif c == KEY_DOWN then
+    state.scroll = state.scroll + 1
+  elseif c == KEY_PGUP then
+    state.scroll = state.scroll - page
+  elseif c == KEY_PGDN then
+    state.scroll = state.scroll + page
+  elseif c == KEY_HOME then
+    state.scroll = 0
+  elseif c == KEY_END then
+    state.scroll = math.huge
+  end
+  if gfx.mouse_wheel ~= 0 then
+    state.scroll = state.scroll - (gfx.mouse_wheel > 0 and 3 or -3)
+    gfx.mouse_wheel = 0
+  end
+
+  local down = gfx.mouse_cap & 1 == 1
+  if down and not state.was_down then
+    local r = hit_rect(state.rects, gfx.mouse_x, gfx.mouse_y)
+    state.pressed = r and r.key
+  elseif not down and state.was_down then
+    local r, pressed = hit_rect(state.rects, gfx.mouse_x, gfx.mouse_y), state.pressed
+    state.pressed = nil
+    state.was_down = false
+    if r and r.key == pressed and not summary_click(state, r) then
+      return false
+    end
+  end
+  state.was_down = down
+  state.rects = draw_summary(state)
+  return true
+end
+
+summary_loop = function(state)
+  state.gen = (state.gen or 0) + 1
+  local gen = state.gen
+  local function loop()
+    if summary ~= state or state.gen ~= gen or not state.window then
+      return
+    end
+    local ok, again = pcall(summary_cycle, state)
+    if not ok then
+      console("summary window failed: " .. one_line(again))
+      close_summary(state)
+      return
+    end
+    if again and summary == state and state.gen == gen then
+      reaper.defer(loop)
+    end
+  end
+  loop()
+end
+
+-- Opens the summary window for `result`, a "checked" result of `run`,
+-- listing every finding without truncation, grouped: to install, no
+-- installer for this platform, not in the catalogue (only when
+-- `notify_unknown` is on), instances to replace by hand, activation pending
+-- (each with an Activate button that reopens the walk-through for that
+-- entry). A banner states when the server catalogue was not used and why.
+-- "Install N plugins" hands the installable entries to `install.start` and
+-- closes the window. It takes over the script's one `gfx` window: an open
+-- summary or walk-through is closed first. Returns true when the window
+-- opened, false when the result holds nothing to list.
+function M.check.show(result)
+  if type(result) ~= "table" or result.status ~= "checked" then
+    return false
+  end
+  local show_unknown = M.settings.load().check.notify_unknown
+  local groups = summary_groups(result, show_unknown)
+  if #groups == 0 then
+    return false
+  end
+  local state = { result = result, groups = groups, show_unknown = show_unknown, scroll = 0 }
+  summary = state
+  if walk then
+    close_walk(walk)
+  end
+  open_summary_window(state)
+  summary_loop(state)
+  return true
+end
+
 return M

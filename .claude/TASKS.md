@@ -166,7 +166,7 @@ Feature: project-watcher
 
 ## 17. Summary window and Check project action
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/RPM_CheckProject.lua
 Preconditions: 16, 21, 29

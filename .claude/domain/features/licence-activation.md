@@ -52,8 +52,8 @@ Lua ReaScripts with a `gfx` window, per
 - **Pending record** — every entry entering the walk-through is recorded
   pending until Done.
 - **Pending query** — answers the watcher with the pending entries among a
-  project's installed plugins; the watcher shows them as a group whose
-  Activate button reopens the walk-through for just those entries.
+  project's installed plugins; the watcher shows them as a group, each
+  entry with an Activate button that reopens the walk-through for it.
 - **Opener** — Windows `start "" "<target>"` through `ExecProcess`; macOS
   `open -a "<app>"` or `open "<url>"`.
 - **Serial store** — the same platform back ends as `server-access`'s
