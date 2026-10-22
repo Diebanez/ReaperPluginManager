@@ -371,8 +371,8 @@ end
 
 -- The prefixes of the transient files a crash can leave in the data folder:
 -- credentials files, secret hand-offs, curl error output, background upload
--- status files and catalogue downloads and cache writes.
-local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload", "catalogue" }
+-- status files, catalogue downloads and cache writes, and draft writes.
+local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload", "catalogue", "draft" }
 
 -- Removes the transient files a crash left in the data folder. Runs once per
 -- REAPER session, at the first load of this module.
@@ -883,15 +883,12 @@ local function report_warnings(warnings)
   end
 end
 
--- Replaces the cache with the decoded catalogue `value` served by `url`.
+-- Replaces the file at `path` in the data folder with `text`, written first
+-- to a transient file named after `prefix`, so `path` is never partial.
 -- Returns true, or false and an error.
-local function save_cache(url, value)
-  local text, err = core.catalogue.cache_text(url, value)
-  if not text then
-    return false, err
-  end
+local function write_replace(path, text, prefix)
   reaper.RecursiveCreateDirectory(M.data_dir(), 0)
-  local temp = temp_path("catalogue")
+  local temp = temp_path(prefix)
   local f = io.open(temp, "wb")
   if not f then
     return false, "Cannot write " .. temp
@@ -902,26 +899,41 @@ local function save_cache(url, value)
     os.remove(temp)
     return false, "Cannot write " .. temp
   end
-  local moved, merr = move_file(temp, cache_path())
+  local moved, merr = move_file(temp, path)
   if not moved then
     os.remove(temp)
   end
   return moved, merr
 end
 
--- The cached catalogue and its warnings when the cache came from `url` and
--- is still valid, or nil.
+-- Replaces the cache with the decoded catalogue `value` served by `url`.
+-- Returns true, or false and an error.
+local function save_cache(url, value)
+  local text, err = core.catalogue.cache_text(url, value)
+  if not text then
+    return false, err
+  end
+  return write_replace(cache_path(), text, "catalogue")
+end
+
+-- The cached catalogue, its warnings and the decoded catalogue as cached when
+-- the cache came from `url` and is still valid, or nil.
 local function load_cache(url)
   local text = read_file(cache_path())
   if not text then
     return nil
   end
-  return core.catalogue.read_cache(text, url)
+  local catalogue, warnings = core.catalogue.read_cache(text, url)
+  if not catalogue then
+    return nil
+  end
+  return catalogue, warnings, core.json.decode(text).catalogue
 end
 
 -- Downloads and validates the server catalogue and, when it is usable,
--- replaces the cache with it. Returns the catalogue and its warnings, or nil
--- and the one-line reason it cannot be used.
+-- replaces the cache with it. Returns the catalogue, its warnings and the
+-- decoded catalogue as served, or nil and the one-line reason it cannot be
+-- used.
 local function fetch_server(url)
   local temp = temp_path("catalogue")
   local ok, err = M.transfer.download(CATALOGUE_FILE, temp)
@@ -942,46 +954,120 @@ local function fetch_server(url)
   if not saved then
     console("cannot update the catalogue cache: " .. one_line(serr))
   end
-  return catalogue, warnings
+  return catalogue, warnings, value
 end
 
 local function fetch(url)
-  local catalogue, warnings = fetch_server(url)
+  local catalogue, warnings, value = fetch_server(url)
   if catalogue then
     report_warnings(warnings)
-    return catalogue, "server"
+    return catalogue, "server", nil, value
   end
   local reason = warnings
-  local cached, cache_warnings = load_cache(url)
+  local cached, cache_warnings, cached_value = load_cache(url)
   if not cached then
     return nil, "none", reason
   end
   report_warnings(cache_warnings)
-  return cached, "cache", reason
+  return cached, "cache", reason, cached_value
 end
 
--- Fetches the catalogue from the server root. Returns catalogue, source and
--- reason: source is "server" (the cache was replaced), "cache" (the server
--- catalogue could not be used; reason says why) or "none" (no usable cache
--- either; the catalogue is nil). Validation warnings go to the REAPER
--- console. A cache from another server URL than the current setting is
--- ignored. Never raises.
+-- Fetches the catalogue from the server root. Returns catalogue, source,
+-- reason and value: source is "server" (the cache was replaced), "cache" (the
+-- server catalogue could not be used; reason says why) or "none" (no usable
+-- cache either; the catalogue is nil); value is the decoded catalogue before
+-- validation, as served or cached, entries validation skipped included.
+-- Validation warnings go to the REAPER console. A cache from another server
+-- URL than the current setting is ignored. Never raises.
 function M.catalogue.fetch()
   local url = ""
-  local ok, catalogue, source, reason = pcall(function()
+  local ok, catalogue, source, reason, value = pcall(function()
     url = M.settings.load().server.url
     return fetch(url)
   end)
   if ok then
-    return catalogue, source, reason
+    return catalogue, source, reason, value
   end
   reason = "Cannot fetch the catalogue: " .. one_line(catalogue)
-  local cok, cached, warnings = pcall(load_cache, url)
+  local cok, cached, warnings, cached_value = pcall(load_cache, url)
   if cok and cached then
     pcall(report_warnings, warnings)
-    return cached, "cache", reason
+    return cached, "cache", reason, cached_value
   end
   return nil, "none", reason
+end
+
+---------------------------------------------------------------------------
+-- Catalogue draft: the maintainer's local working copy of the catalogue and
+-- the base it started from, kept until it is published or discarded.
+---------------------------------------------------------------------------
+
+M.draft = {}
+
+function M.draft.path()
+  return M.data_dir() .. "draft.json"
+end
+
+local function is_table(v)
+  return type(v) == "table" and v ~= core.json.null
+end
+
+-- Returns the stored draft, or nil when there is none, or nil and an error
+-- when it cannot be read. The draft is decoded JSON: `catalogue`, the draft
+-- in the catalogue format, and `base`, the catalogue it started from; any
+-- other key is kept as stored.
+function M.draft.load()
+  local path = M.draft.path()
+  local text = read_file(path)
+  if not text then
+    return nil
+  end
+  local draft, err = core.json.decode(text)
+  if draft == nil then
+    return nil, "The catalogue draft " .. path .. " is not valid JSON: " .. (err:gsub("^json: ", ""))
+  end
+  if not is_table(draft) or not is_table(draft.base) or not is_table(draft.catalogue) then
+    return nil, "The catalogue draft " .. path .. " is damaged: it lacks the draft catalogue or its base."
+  end
+  return draft
+end
+
+-- Stores `draft`, replacing the stored one in one step. Returns true, or
+-- false and an error.
+function M.draft.save(draft)
+  local text, err = core.json.encode(draft)
+  if not text then
+    return false, "Cannot encode the catalogue draft: " .. err
+  end
+  return write_replace(M.draft.path(), text, "draft")
+end
+
+-- Starts a draft from the decoded catalogue `value`, which becomes the
+-- draft's base, and stores it. Returns the draft, or nil and an error.
+function M.draft.create(value)
+  local text, err = core.json.encode(value)
+  if not text then
+    return nil, "Cannot copy the catalogue into a draft: " .. err
+  end
+  local draft = core.json.object({ base = value, catalogue = core.json.decode(text) })
+  local ok, serr = M.draft.save(draft)
+  if not ok then
+    return nil, serr
+  end
+  return draft
+end
+
+-- Deletes the stored draft; deleting one that is not there succeeds.
+-- Returns true, or false and an error.
+function M.draft.discard()
+  local path = M.draft.path()
+  if not file_exists(path) then
+    return true
+  end
+  if not os.remove(path) then
+    return false, "Cannot delete " .. path
+  end
+  return true
 end
 
 ---------------------------------------------------------------------------

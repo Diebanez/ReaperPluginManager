@@ -326,7 +326,7 @@ Feature: licence-activation
 
 ## 33. Catalogue editor shell: ReaImGui guard, draft store, entry list
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 7
