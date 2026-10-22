@@ -37,6 +37,8 @@ $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 $ConnectTimeout = 30
 $StallTimeout = 60
 $SuccessCodes = @(0, 3010)
+# A folder path inside an archive that marks a 32-bit copy of a plugin.
+$Marker32 = '(?i)(^|[^a-z0-9])(x86(?![-_]?64)|32-?bit|win32|32)(?=[^a-z0-9]|$)'
 
 function Write-Status([string]$line) {
   [IO.File]::AppendAllText($StatusFile, $line + "`n", $Utf8NoBom)
@@ -192,9 +194,112 @@ function Install-Msi($entry, [string]$file) {
   return $process.ExitCode
 }
 
+# The message of a caught error, without PowerShell's method-call wrapper.
+function Get-ErrorText($record) {
+  $e = $record.Exception
+  if ($e.InnerException) { $e = $e.InnerException }
+  return $e.Message
+}
+
+# The outermost plugin items under `dir`, in name order, without descending
+# into an item already found; __MACOSX folders are skipped.
+function Find-PluginItems([string]$dir) {
+  foreach ($path in ([IO.Directory]::GetFileSystemEntries($dir) | Sort-Object)) {
+    $isDir = [IO.Directory]::Exists($path)
+    $ext = [IO.Path]::GetExtension($path).ToLowerInvariant()
+    if ($ext -eq '.vst3' -or (-not $isDir -and ($ext -eq '.clap' -or $ext -eq '.dll'))) {
+      $path
+    } elseif ($isDir -and [IO.Path]::GetFileName($path) -ne '__MACOSX') {
+      Find-PluginItems $path
+    }
+  }
+}
+
+# The plugin items to copy: of a name found more than once, the copies whose
+# folder path under `root` marks them 32-bit are dropped, as long as one copy
+# is not so marked.
+function Select-PreferredItems([string[]]$items, [string]$root) {
+  foreach ($group in ($items | Group-Object { [IO.Path]::GetFileName($_).ToLowerInvariant() })) {
+    $copies = @($group.Group)
+    if ($copies.Count -gt 1) {
+      $unmarked = @($copies | Where-Object {
+        [IO.Path]::GetDirectoryName($_).Substring($root.Length) -notmatch $Marker32
+      })
+      if ($unmarked.Count -gt 0) { $copies = $unmarked }
+    }
+    $copies
+  }
+}
+
+# The folder a plugin item goes to: the entry's dest (vst3, vst2, clap or an
+# absolute path), or else the item's extension.
+function Get-PluginFolder([string]$item, [string]$dest) {
+  $kind = $dest.ToLowerInvariant()
+  if (-not $kind) {
+    $kind = @{ '.vst3' = 'vst3'; '.clap' = 'clap'; '.dll' = 'vst2' }[[IO.Path]::GetExtension($item).ToLowerInvariant()]
+  }
+  switch ($kind) {
+    'vst3' { return $Vst3Dir }
+    'clap' { return $ClapDir }
+    'vst2' {
+      if (-not $Vst2Dir) { throw 'no VST2 folder set (vst2_dir in the settings)' }
+      return $Vst2Dir
+    }
+  }
+  if ($dest -notmatch '^([A-Za-z]:[\\/]|[\\/]{2})') {
+    throw ('destination not supported on Windows: ' + $dest)
+  }
+  return $dest
+}
+
+function Copy-Folder([string]$source, [string]$target) {
+  [void][IO.Directory]::CreateDirectory($target)
+  foreach ($file in [IO.Directory]::GetFiles($source)) {
+    [IO.File]::Copy($file, (Join-Path $target ([IO.Path]::GetFileName($file))))
+  }
+  foreach ($sub in [IO.Directory]::GetDirectories($source)) {
+    Copy-Folder $sub (Join-Path $target ([IO.Path]::GetFileName($sub)))
+  }
+}
+
+# Copies the plugin item (file or folder) into `folder`, deleting an existing
+# item of the same name first: a folder copied over another would nest in it.
+function Copy-PluginItem([string]$item, [string]$folder) {
+  $name = [IO.Path]::GetFileName($item)
+  $target = Join-Path $folder $name
+  try {
+    [void][IO.Directory]::CreateDirectory($folder)
+    if ([IO.Directory]::Exists($target)) { [IO.Directory]::Delete($target, $true) }
+    elseif ([IO.File]::Exists($target)) { [IO.File]::Delete($target) }
+    if ([IO.Directory]::Exists($item)) { Copy-Folder $item $target }
+    else { [IO.File]::Copy($item, $target) }
+  } catch {
+    throw ('cannot copy ' + $name + ' to ' + $folder + ': ' + (Get-ErrorText $_))
+  }
+}
+
+# Unpacks the archive into `dir`\unpacked and copies its plugin items to their
+# folders, every folder resolved before the first copy.
+function Install-Zip($entry, [string]$file, [string]$dir) {
+  $root = Join-Path $dir 'unpacked'
+  try {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($file, $root)
+  } catch {
+    throw ('cannot unpack the archive: ' + (Get-ErrorText $_))
+  }
+  $items = @(Find-PluginItems $root)
+  if ($items.Count -eq 0) { throw 'no plugin (.vst3, .clap, .dll) in the archive' }
+  $items = @(Select-PreferredItems $items $root)
+  $folders = @($items | ForEach-Object { Get-PluginFolder $_ $entry.Dest })
+  for ($i = 0; $i -lt $items.Count; $i++) {
+    Copy-PluginItem $items[$i] $folders[$i]
+  }
+}
+
 # Downloads, verifies and installs one entry; throws with the FAIL message.
 function Install-Entry($entry) {
-  if ($entry.Type -ne 'exe' -and $entry.Type -ne 'msi') {
+  if (@('exe', 'msi', 'zip') -notcontains $entry.Type) {
     throw 'installer type not supported on Windows'
   }
   if (-not $WorkDir) { throw 'no work folder given' }
@@ -217,6 +322,7 @@ function Install-Entry($entry) {
   switch ($entry.Type) {
     'exe' { $code = Install-Exe $entry $file $dir }
     'msi' { $code = Install-Msi $entry $file }
+    'zip' { Install-Zip $entry $file $dir; $code = 0 }
   }
   if ($SuccessCodes -notcontains $code) {
     throw ('installer exited with code ' + $code)

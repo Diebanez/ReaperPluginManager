@@ -236,7 +236,7 @@ Feature: install-helper-windows
 
 ## 24. Windows helper zip routing
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.ps1
 Preconditions: 23
