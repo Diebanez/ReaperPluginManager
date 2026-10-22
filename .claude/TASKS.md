@@ -186,7 +186,7 @@ Feature: project-watcher
 
 ## 19. Update documentation for feature `project-watcher`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md
 Preconditions: 16, 17, 18

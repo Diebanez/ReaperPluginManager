@@ -6,29 +6,65 @@ own server. When you open a project that uses plugins you do not have, the
 manager lists them, installs what the catalogue offers once you agree, and
 guides you through activating each plugin's licence with your own account.
 
-## The project summary
+## The project check
 
-When a project uses plugins that are not installed on your machine, one
-summary window lists all of them. A plugin counts as installed when REAPER
-lists the same plugin file or id, or a plugin of the same format and name, so
-a project saved on another platform is recognised too. Every plugin the
-project uses is checked, wherever it sits: track and master effects, take
-effects and containers.
+A check reads the project file as last saved, finds every plugin the project
+uses, wherever it sits — track and master effects, take effects and
+containers — and works out which are not installed on your machine. A plugin
+counts as installed when REAPER lists the same plugin file or id, or a plugin
+of the same format and name, so a project saved on another platform is
+recognised too. Plugins added since the last save are not part of the check.
 
-The missing plugins are sorted into groups:
+### When a project is checked
+
+While automatic checking is on (`auto` in the `[check]` section of the
+settings), the *ReaperPluginManager: Watcher* action checks every saved
+project in the background each time it is opened, in a new tab or in place
+of another project, about a second after it has loaded. Switching between
+project tabs is not an opening and checks nothing; closing a project and
+opening it again checks it again. Reloading a project in the tab it is
+already in is not detected: run *Check project* instead. A project that has
+never been saved is not checked. When the check finds nothing to list, no
+window opens. While plugins are being installed, the projects you open are
+checked once the install has ended. A check that fails writes the error to
+the REAPER console and does not stop the watcher.
+
+The *ReaperPluginManager: Check project* action checks the current project
+on demand and always answers: the summary window, or a message — "All N
+plugins are installed.", "The project uses no plugins.", "Save the project
+first." for a project never saved, or that the project file cannot be read.
+When the only missing plugins are ones not in the catalogue and that group is
+switched off, the message counts them and says why they are not listed.
+
+### The summary window
+
+One summary window lists everything the check found. Its heading names the
+project file and how many of its plugins are not installed. The findings are
+sorted into groups, each title carrying its count, and empty groups are left
+out:
 
 - **To install** — the catalogue has an installer for your platform. Each
-  plugin is listed once, with the maintainer's note, however many instances
-  the project holds.
-- **No installer for this platform** — the catalogue knows the plugin, but
-  has no installer for your platform.
+  plugin is listed once, as *Name (Vendor)* with the maintainer's note,
+  however many instances the project holds.
+- **No installer for Windows** (or **macOS**) — the catalogue knows the
+  plugin, but has no installer for your platform.
 - **Not in the catalogue** — no catalogue entry matches the plugin, listed
   with its format and number of instances. Ask the maintainer to add it. This
-  group can be switched off in the settings.
-- **Replace by hand** — instances that will stay offline even after
-  installing, because their format cannot be loaded here. See below.
+  group can be switched off in the settings (`notify_unknown`).
+- **Instances to replace by hand** — instances that will stay offline even
+  after installing, because their format cannot be loaded here, each with the
+  reason. See below.
 - **Activation pending** — installed plugins whose licence activation you
-  skipped; they stay listed until you confirm the activation.
+  skipped; they stay listed until you confirm the activation. Each has an
+  *Activate* button that opens the activation steps for that plugin; when
+  they close, the summary comes back without the plugins you confirmed.
+
+The list scrolls with the mouse wheel, the arrow keys, Page Up, Page Down,
+Home and End, and nothing is cut short. At the bottom, **Install N plugins**
+— shown only when something can be installed — closes the window and starts
+installing every plugin under *To install*; **Close**, or Escape, closes it
+and installs nothing. A new check replaces a summary window that is still
+open.
 
 ### Why an instance can need replacing by hand
 
@@ -53,9 +89,12 @@ VST3, AU, CLAP and LV2.
 Every check fetches the catalogue from the server and keeps a copy of it on
 your machine. When the server cannot be reached, or the catalogue on it cannot
 be read, the check uses the cached copy, so a project can still be checked
-offline. The copy belongs to the server address it came from: after you change
+offline, and a banner under the summary's heading says so and why: "The
+server catalogue could not be used, so the cached one was." followed by the
+reason. The copy belongs to the server address it came from: after you change
 the address, it is not used. With no server and no cached copy, the check
-finds no catalogue and nothing is offered for installing.
+finds no catalogue, nothing is offered for installing, and the banner reads
+"No catalogue is available, so nothing can be installed." with the reason.
 
 ## Installing plugins
 
