@@ -74,8 +74,9 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
 - **Settings file** (`config.ini`, local data folder), sections and keys:
   - `[server]` `url` (always ends with `/`), `tls` (`required` | `try` |
     `off`, default `required`), `insecure` (`0` | `1`, default `0`);
-  - `[install]` `vst2_dir` (Windows destination for VST2 `.dll` files
-    unpacked from archives);
+  - `[install]` `vst2_dir` (Windows only, optional: destination for VST2
+    `.dll` files unpacked from archives; empty, the default, means those
+    files are skipped);
   - `[check]` `auto` (`1` | `0`, default `1`), `notify_unknown` (`1` | `0`,
     default `1`).
   Comments with `;` or `#`. The file is the source of truth for settings.
