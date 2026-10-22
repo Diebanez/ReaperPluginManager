@@ -4,6 +4,10 @@ Agent guidance for this project; `AGENTS.md` points other agents here.
 
 Interaction policy: unattended
 
+For product and domain knowledge — what this product is, how its features
+are designed, and why the architecture is what it is — read
+`.claude/domain/INDEX.md`, then only the domain files relevant to your task.
+
 ## Project
 
 ReaperPluginManager (RPM) is a plugin manager for REAPER. Plugin installers
