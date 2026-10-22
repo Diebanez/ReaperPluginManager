@@ -1084,6 +1084,221 @@ function M.draft.discard()
 end
 
 ---------------------------------------------------------------------------
+-- Catalogue publish: sends the draft to the server. The draft's `files`
+-- holds, per installer server path, a record; one with a local `source` whose
+-- `uploaded` is not true is uploaded, then marked uploaded in the stored
+-- draft, so a retried publish resumes.
+---------------------------------------------------------------------------
+
+M.publish = {}
+
+-- Reports progress to the defer loop that resumes the publish coroutine; a
+-- publish run outside a coroutine just goes on.
+local function publish_progress(progress)
+  if coroutine.isyieldable() then
+    coroutine.yield(progress)
+  end
+end
+
+local function plugins_in(catalogue)
+  return is_table(catalogue) and is_table(catalogue.plugins) and catalogue.plugins or {}
+end
+
+-- The distinct installer server paths the entries of `catalogue` name, in
+-- entry order, and the same paths as a set.
+local function installer_paths_of(catalogue)
+  local list, set = {}, {}
+  for _, entry in ipairs(plugins_in(catalogue)) do
+    for _, path in ipairs(core.editor.installer_paths(entry)) do
+      if not set[path] then
+        set[path] = true
+        list[#list + 1] = path
+      end
+    end
+  end
+  return list, set
+end
+
+-- The installers `draft` still has to upload, in catalogue order: { path,
+-- source, record } for every record with a local source not yet uploaded
+-- whose server path the draft catalogue names.
+local function pending_uploads(draft)
+  local files = is_table(draft.files) and draft.files or {}
+  local out = {}
+  for _, path in ipairs((installer_paths_of(draft.catalogue))) do
+    local record = files[path]
+    if is_table(record) and record.uploaded ~= true and type(record.source) == "string" and record.source ~= "" then
+      out[#out + 1] = { path = path, source = record.source, record = record }
+    end
+  end
+  return out
+end
+
+local function count_of(n, one, many)
+  return ("%d %s"):format(n, n == 1 and one or many)
+end
+
+-- Checks whether the server catalogue still is the draft's base. Returns nil
+-- when it is, or the warning to put to the maintainer: the server catalogue
+-- changed since the draft began, or it could not be fetched to tell.
+function M.publish.check(draft)
+  local _, source, reason, value = M.catalogue.fetch()
+  if source ~= "server" then
+    return "The catalogue on the server could not be fetched, so it cannot be checked for changes made since "
+      .. "this draft began: " .. one_line(reason)
+  end
+  local served, base = core.json.encode(value), core.json.encode(draft.base)
+  if served and served == base then
+    return nil
+  end
+  return "The catalogue on the server changed since this draft began, for example from another machine. "
+    .. "Publishing replaces it with the draft, and the changes made there are lost."
+end
+
+-- Uploads the pending installers of `draft` one at a time in the background,
+-- yielding { phase = "upload", index, count, path, done, total } after every
+-- poll. Returns the server paths uploaded, or nil and the failure report.
+local function upload_phase(draft)
+  local pending = pending_uploads(draft)
+  local uploaded = {}
+  for i, item in ipairs(pending) do
+    local handle = M.transfer.upload_async(item.source, item.path)
+    while true do
+      local st, done, total, err = handle.poll()
+      if st == "failed" then
+        local report = ("Publishing stopped: uploading %s to %s failed: %s\n\nThe catalogue on the server was not "
+          .. "changed and no installer file was deleted."):format(item.source, item.path, one_line(err))
+        if #uploaded > 0 then
+          report = report .. " The " .. count_of(#uploaded, "installer", "installers")
+            .. " uploaded before it stay on the server and are not uploaded again when you publish again."
+        end
+        return nil, report
+      elseif st == "done" then
+        break
+      end
+      publish_progress({ phase = "upload", index = i, count = #pending, path = item.path, done = done, total = total })
+    end
+    item.record.uploaded = true
+    local ok, err = M.draft.save(draft)
+    if not ok then
+      console("cannot record the upload of " .. item.path .. " in the draft: " .. one_line(err))
+    end
+    uploaded[#uploaded + 1] = item.path
+  end
+  return uploaded
+end
+
+-- Replaces the server catalogue with the draft catalogue, then makes it the
+-- local cache. Returns true, or false and the failure report.
+local function catalogue_phase(draft)
+  publish_progress({ phase = "catalogue" })
+  local text, err = core.json.encode(draft.catalogue)
+  if not text then
+    return false, "Publishing stopped: the draft catalogue cannot be encoded: " .. err
+  end
+  local temp = temp_path("manifest")
+  local ok, werr = write_replace(temp, text, "publish")
+  if not ok then
+    return false, "Publishing stopped: the new catalogue cannot be written: " .. one_line(werr)
+  end
+  ok, err = M.transfer.replace(temp, CATALOGUE_FILE)
+  os.remove(temp)
+  if not ok then
+    return false, "Publishing stopped: the catalogue on the server could not be replaced: " .. one_line(err)
+  end
+  local saved, serr = save_cache(M.settings.load().server.url, draft.catalogue)
+  if not saved then
+    console("cannot update the catalogue cache: " .. one_line(serr))
+  end
+  return true
+end
+
+-- Deletes every installer file the base names and the draft catalogue does
+-- not, yielding { phase = "cleanup", index, count, path } before each delete.
+-- Returns the paths deleted and the orphans, each { path, err }.
+local function cleanup_phase(draft)
+  local _, kept = installer_paths_of(draft.catalogue)
+  local gone = {}
+  for _, path in ipairs((installer_paths_of(draft.base))) do
+    if not kept[path] then
+      gone[#gone + 1] = path
+    end
+  end
+  local deleted, orphans = {}, {}
+  for i, path in ipairs(gone) do
+    publish_progress({ phase = "cleanup", index = i, count = #gone, path = path })
+    local ok, err = M.transfer.delete(path)
+    if ok then
+      deleted[#deleted + 1] = path
+    else
+      orphans[#orphans + 1] = { path = path, err = one_line(err) }
+    end
+  end
+  return deleted, orphans
+end
+
+-- Lists `paths` one per line, indented.
+local function path_lines(paths)
+  local out = {}
+  for _, p in ipairs(paths) do
+    out[#out + 1] = "  " .. p
+  end
+  return table.concat(out, "\n")
+end
+
+-- Publishes `draft`: uploads its pending installers, replaces the server
+-- catalogue with it only when every upload succeeded, deletes the installer
+-- files only its base names (a failed delete leaves a reported orphan), then
+-- clears the stored draft. Returns ok and the report to show. Run inside a
+-- coroutine, it yields a progress table between steps so a defer loop keeps
+-- REAPER usable while uploads run; `phase` is "upload", "catalogue" or
+-- "cleanup".
+function M.publish.publish(draft)
+  local uploaded, uerr = upload_phase(draft)
+  if not uploaded then
+    return false, uerr
+  end
+  local replaced, cerr = catalogue_phase(draft)
+  if not replaced then
+    local report = cerr .. "\n\nThe catalogue on the server is unchanged and no installer file was deleted."
+    if #uploaded > 0 then
+      report = report .. " The " .. count_of(#uploaded, "installer", "installers")
+        .. " just uploaded stay on the server and are not uploaded again when you publish again."
+    end
+    return false, report
+  end
+  local deleted, orphans = cleanup_phase(draft)
+
+  local lines = { "The catalogue was published." }
+  if #uploaded > 0 then
+    lines[#lines + 1] = "Uploaded " .. count_of(#uploaded, "installer", "installers") .. ":\n" .. path_lines(uploaded)
+  else
+    lines[#lines + 1] = "No installer needed uploading."
+  end
+  lines[#lines + 1] = ("Replaced the catalogue on the server (%s)."):format(
+    count_of(#plugins_in(draft.catalogue), "entry", "entries"))
+  if #deleted > 0 then
+    lines[#lines + 1] = "Deleted " .. count_of(#deleted, "installer file", "installer files")
+      .. " no longer referenced:\n" .. path_lines(deleted)
+  elseif #orphans == 0 then
+    lines[#lines + 1] = "No installer file needed deleting."
+  end
+  if #orphans > 0 then
+    local out = {}
+    for _, o in ipairs(orphans) do
+      out[#out + 1] = "  " .. o.path .. ": " .. o.err
+    end
+    lines[#lines + 1] = "Could not delete " .. count_of(#orphans, "installer file", "installer files")
+      .. " no longer referenced; they stay on the server as orphans, to delete by hand:\n" .. table.concat(out, "\n")
+  end
+  local ok, derr = M.draft.discard()
+  if not ok then
+    lines[#lines + 1] = "The draft could not be cleared: " .. derr .. ". Discard it before editing again."
+  end
+  return true, table.concat(lines, "\n\n")
+end
+
+---------------------------------------------------------------------------
 -- Licence activation: the entry's activation field, the record of the
 -- entries still pending activation (`activation.ini`), the member's saved
 -- serials, and the walk-through window that opens each vendor's app or page.

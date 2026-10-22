@@ -2,9 +2,10 @@
 -- action. The maintainer's ReaImGui window over the local catalogue draft:
 -- every draft entry, what changed since the catalogue the draft started from,
 -- the validation problems that block publishing, the three ways to add an
--- entry (from REAPER's installed plugins, by hand, or from a draft entry file)
--- and the entry form that edits every field of an entry, attaches its
--- installers with their checksums, and removes it.
+-- entry (from REAPER's installed plugins, by hand, or from a draft entry file),
+-- the entry form that edits every field of an entry, attaches its installers
+-- with their checksums, and removes it, and Publish, which sends the draft to
+-- the server with per-file upload progress.
 
 local script_dir = debug.getinfo(1, "S").source:match("^@(.*[\\/])")
 if script_dir and not package.path:find(script_dir, 1, true) then
@@ -48,6 +49,7 @@ local state = {
   hand = { name = "", vendor = "", match = "" }, -- the Add by hand fields
   draft_files = {}, -- the file names Import draft offers
   form = nil,     -- the entry form, while one is open
+  publishing = nil, -- the publish run, while one is running: its coroutine and last progress
 }
 
 local function message(text)
@@ -992,13 +994,37 @@ end
 -- Publish and Discard
 ---------------------------------------------------------------------------
 
--- catalogue-publish's `publish(draft)`, or nil while that feature is absent.
-local function publisher()
-  local publish = rpm.publish
-  if type(publish) == "table" and type(publish.publish) == "function" then
-    return publish.publish
+-- Ends a publish run with its outcome: a cleared draft closes the window
+-- after showing the report; otherwise the stored draft, with the uploads
+-- already made, is shown again with the report in the status line.
+local function finish_publish(ok, report)
+  state.publishing = nil
+  local text = type(report) == "string" and report
+    or (ok and "The catalogue was published." or "Publishing failed.")
+  local draft, err = rpm.draft.load()
+  if draft then
+    set_draft(draft)
+    state.status = text
+  elseif err then
+    state.status = text .. "\n" .. err
+  else
+    message(text)
+    state.closing = true
   end
-  return nil
+end
+
+-- Runs the publish coroutine up to its next progress report, once per
+-- frame, so REAPER stays usable while installers upload.
+local function step_publish()
+  local run = state.publishing
+  local ok, a, b = coroutine.resume(run.co, state.draft)
+  if not ok then
+    finish_publish(false, "Publishing stopped on an error: " .. tostring(a))
+  elseif coroutine.status(run.co) == "dead" then
+    finish_publish(a, b)
+  else
+    run.progress = a
+  end
 end
 
 local function publish()
@@ -1011,25 +1037,15 @@ local function publish()
     state.status = "Publishing is blocked: fix the problems shown in the list first."
     return
   end
-  local run = publisher()
-  if not run then
-    state.status = "Publishing is not available in this version of ReaperPluginManager."
+  local warning = rpm.publish.check(state.draft)
+  if warning and not confirm(warning .. "\n\nPublish over the server catalogue anyway? No stops publishing.") then
+    state.status = "Publishing stopped: nothing was sent to the server."
     return
   end
-  local ok, report = run(state.draft)
-  local text = type(report) == "string" and report
-    or (ok and "The catalogue was published." or "Publishing failed.")
   state.form = nil
-  local draft, err = rpm.draft.load()
-  if draft then
-    set_draft(draft)
-    state.status = text
-  elseif err then
-    state.status = text .. "\n" .. err
-  else
-    message(text)
-    state.closing = true
-  end
+  state.panel = nil
+  state.status = nil
+  state.publishing = { co = coroutine.create(rpm.publish.publish), progress = nil }
 end
 
 local function discard()
@@ -1370,8 +1386,45 @@ local PANELS = {
   { key = "import", button = "Import draft", draw = draw_import },
 }
 
+-- `bytes` as the progress bar shows it.
+local function size_text(bytes)
+  bytes = tonumber(bytes) or 0
+  if bytes >= 1048576 then
+    return ("%.1f MB"):format(bytes / 1048576)
+  elseif bytes >= 1024 then
+    return ("%.0f KB"):format(bytes / 1024)
+  end
+  return ("%d bytes"):format(math.floor(bytes))
+end
+
+-- The window while a publish runs: what it is doing, with the current
+-- upload's progress, above the list, which cannot be edited meanwhile.
+local function draw_publishing()
+  local p = state.publishing.progress
+  wrapped("Publishing the draft. REAPER stays usable; this window stays open until publishing ends.")
+  if not p then
+    ImGui.Text(ctx, "Starting...")
+  elseif p.phase == "upload" then
+    wrapped(("Uploading installer %d of %d: %s"):format(p.index, p.count, p.path))
+    local fraction = (p.total or 0) > 0 and (p.done or 0) / p.total or 0
+    ImGui.ProgressBar(ctx, fraction, -1, 0, ("%s of %s"):format(size_text(p.done), size_text(p.total)))
+  elseif p.phase == "catalogue" then
+    ImGui.Text(ctx, "Replacing the catalogue on the server...")
+  elseif p.phase == "cleanup" then
+    wrapped(("Deleting installer files no longer referenced, %d of %d: %s"):format(p.index, p.count, p.path))
+  end
+  ImGui.Separator(ctx)
+  ImGui.BeginDisabled(ctx)
+  draw_list()
+  ImGui.EndDisabled(ctx)
+end
+
 local function draw()
   wrapped(summary())
+  if state.publishing then
+    draw_publishing()
+    return
+  end
   if state.notice then
     wrapped(state.notice, COLOURS.notice)
   end
@@ -1425,10 +1478,12 @@ local function loop()
   -- Buttons that open a dialog run between frames, never inside one.
   local action = state.action
   state.action = nil
-  if action then
+  if state.publishing then
+    step_publish()
+  elseif action then
     action()
   end
-  if not open and not state.closing and not leave_form() then
+  if not open and (state.publishing or not state.closing and not leave_form()) then
     open = true
   end
   if open and not state.closing then
