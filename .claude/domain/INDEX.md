@@ -26,6 +26,7 @@ layer.
 | [features/licence-activation.md](./features/licence-activation.md) | The catalogue activation field, the post-install walk-through, pending record and reminders, saved serials |
 | [features/catalogue-editor.md](./features/catalogue-editor.md) | The maintainer's ReaImGui editor: local draft, add from installed/by hand/from a draft file, entry form, checksums |
 | [features/catalogue-publish.md](./features/catalogue-publish.md) | Publishing a draft: server-change check, background installer uploads, safe catalogue replace, orphan cleanup |
+| [features/catalogue-assistant.md](./features/catalogue-assistant.md) | The maintainer's Claude Code skill: vendor research, inspection of installers on the server, draft entry and review report |
 
 ## Features
 

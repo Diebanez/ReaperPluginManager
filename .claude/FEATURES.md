@@ -100,3 +100,12 @@ Source: product-design.md § Catalogue management
 Tasks: none
 
 ---
+
+## catalogue-assistant — Claude-based catalogue entry research
+
+Status: [NEW]
+Doc: .claude/domain/features/catalogue-assistant.md
+Source: product-design.md § Catalogue assistant
+Tasks: none
+
+---

@@ -188,8 +188,9 @@ server in one step, and deletes the installer files it no longer references.
 ### Catalogue assistant
 
 Serves the maintainer, before or during catalogue management. A Claude-based
-assistant that researches a plugin and proposes its catalogue entry: the
-installer type, the silent-install switches to try, the activation method
-and how the plugin names itself in projects, flagging what must still be
-tested by hand. It is a personal aid for this project's maintainer and is not
+assistant that researches a plugin from official vendor sources, inspects
+its installers already placed on the group's server, and proposes its
+catalogue entry: the installer type, the silent-install switches to try,
+the activation method and how the plugin names itself in projects, flagging
+what must still be tested by hand. It never downloads from vendor sites. It is a personal aid for this project's maintainer and is not
 part of the open-source release.

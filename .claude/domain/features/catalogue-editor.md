@@ -50,15 +50,17 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
   base name plus every distinct identifier (file name only for file
   plugins).
 - **Add by hand** — name, vendor and match strings typed in.
-- **Import draft** — reads a JSON file holding one entry (the assistant's
-  output), validates it against the catalogue schema and adds it, or merges
-  it into the entry with the same `id` after confirmation.
+- **Import draft** — lists the draft entry files in the drafts folder (the
+  assistant's output), validates the chosen one against the catalogue
+  schema and adds it, or merges it into the entry with the same `id` after
+  confirmation; an imported file is then removed from the folder.
 - **Entry form** — note; per platform, or once as a shared package: the
-  installer file (picked from disk), type, silent-install arguments,
-  destination; the activation method, app per platform, URL and
-  instructions. Attaching a file computes its SHA-256 with OS tools
-  (`certutil`/PowerShell on Windows, `shasum -a 256` on macOS) and records
-  where it will live on the server.
+  installer, type, silent-install arguments, destination; the activation
+  method, app per platform, URL and instructions. An installer is either a
+  local file picked from disk — attaching it computes its SHA-256 with OS
+  tools (`certutil`/PowerShell on Windows, `shasum -a 256` on macOS) and
+  assigns its server path — or a file already on the server, as an imported
+  draft names it, kept at its existing path and never uploaded.
 - **Remove** — removes an entry from the draft.
 - **Publish / Discard** — Publish hands the draft to `catalogue-publish`;
   Discard deletes the draft after confirmation.
@@ -69,9 +71,12 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
   schema; the base catalogue it started from; per attached installer, the
   local source path, the server path it will be uploaded to, its size and
   checksum.
-- **Server paths** — one folder per entry id: `<id>/windows/<file>`,
-  `<id>/macos/<file>`, and `<id>/<file>` for a package shared by both
-  platforms (named in both `installers` keys).
+- **Server paths** — a local installer is assigned one folder per entry id:
+  `<id>/windows/<file>`, `<id>/macos/<file>`, and `<id>/<file>` for a
+  package shared by both platforms (named in both `installers` keys). An
+  installer already on the server keeps its own path.
+- **Drafts folder** (`drafts/`, local data folder) — draft entry files the
+  catalogue assistant writes; Import draft lists them.
 - Source of truth: the draft, until published; then the server catalogue.
 
 ## Interfaces and contracts
