@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 19
+Last task number: 22
 
 ---
 
@@ -191,5 +191,35 @@ Target: claude
 Files: README.md
 Preconditions: 16, 17, 18
 Feature: project-watcher
+
+---
+
+## 20. Job file writer, URL encoding and status file reader
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: none
+Feature: plugin-installation
+
+---
+
+## 21. Install run: launch, progress window, summary and reopen
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 3, 20, 30
+Feature: plugin-installation
+
+---
+
+## 22. Update documentation for feature `plugin-installation`
+
+Status: [MISSING]
+Target: claude
+Files: README.md
+Preconditions: 20, 21
+Feature: plugin-installation
 
 ---
