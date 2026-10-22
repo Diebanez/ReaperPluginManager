@@ -170,7 +170,8 @@ Each entry in `plugins` holds:
   `file` is empty, has no installer: members on it see the plugin listed
   without one.
 - `activation` — how a member activates the plugin's licence after
-  installing it. Leave it out for a plugin that needs no activation.
+  installing it; see *Activation* below. Leave it out for a plugin that needs
+  no activation.
 
 Each installer object holds:
 
@@ -197,6 +198,91 @@ holding the plugin for each — name the same `file` under both `windows` and
 `macos`, as the `acme-reverb` entry of `manifest.example.json` does and the
 entry form's *One package shared by both platforms* does. The file is stored
 once on the server.
+
+### Activation
+
+After an install run, each installed plugin whose entry names an activation
+method gets a step in the member's activation window: the plugin's name, the
+entry's instructions and an **Activate** button that opens the vendor's app
+or page. The plugin stays "activation pending", and is listed as such
+whenever a project uses it, until the member confirms the activation. Each
+member activates with their own licence and vendor account: never put a
+licence key, a serial or account details in the catalogue. Members can save
+their own serial on their own machine, which never reaches the server.
+
+The `activation` object holds:
+
+- `method` — `none`, `vendor-app`, `serial` or `sign-in`, each described
+  below. Left out, it means `none`. Any other value is read as `none` and
+  reported in REAPER's console; the entry stays usable.
+- `app` — for `vendor-app` only: an object with up to two keys, `windows`
+  and `macos`, each holding the vendor app's `name`, shown to the member, and
+  its `path`, where the app is expected: the program file on Windows, the
+  `.app` bundle on macOS.
+- `url` — the vendor page that activates the plugin or, for `vendor-app`, the
+  app's download page. Without it, Activate opens only a vendor app it finds;
+  otherwise it opens nothing and the step points to the instructions.
+- `instructions` — one or two lines telling the member what to do. Without
+  them, the step says that no instructions were given.
+
+#### `none`
+
+The plugin needs no activation, and it never enters the activation window.
+This is the same as leaving `activation` out:
+
+```json
+"activation": { "method": "none" }
+```
+
+#### `vendor-app`
+
+The plugin is activated in the vendor's own app. Activate opens the app when
+it is at the `path` recorded for the member's platform; otherwise — the app
+is not installed, installed somewhere else, or no `path` is given — it opens
+`url`, so make that the app's download page. Every plugin of one run
+activated in the same app shares one step, so the member opens the app once:
+
+```json
+"activation": {
+  "method": "vendor-app",
+  "app": {
+    "windows": { "name": "Acme Hub", "path": "C:\\Program Files\\Acme\\Acme Hub\\AcmeHub.exe" },
+    "macos": { "name": "Acme Hub", "path": "/Applications/Acme Hub.app" }
+  },
+  "url": "https://acmeaudio.example/hub/download",
+  "instructions": "Sign in to Acme Hub with your Acme account and press Activate beside the plugin."
+}
+```
+
+Write each `\` of a Windows path as `\\`, as JSON requires.
+
+#### `serial`
+
+The plugin is activated with the member's serial number, on the vendor's
+page or in the plugin itself. Activate opens `url` and, when the member has
+saved their serial for this plugin, copies it to the clipboard:
+
+```json
+"activation": {
+  "method": "serial",
+  "url": "https://acmeaudio.example/activate",
+  "instructions": "Enter the serial from your Acme purchase email, then reload the plugin."
+}
+```
+
+#### `sign-in`
+
+The plugin is activated by signing in to the member's vendor account,
+typically in the plugin's own window or on the vendor's page. Activate opens
+`url`:
+
+```json
+"activation": {
+  "method": "sign-in",
+  "url": "https://acmeaudio.example/account",
+  "instructions": "Open the plugin in REAPER and sign in with your Acme account."
+}
+```
 
 ### How the manager reads the catalogue
 

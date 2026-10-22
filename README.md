@@ -135,8 +135,9 @@ out:
   reason. See below.
 - **Activation pending** — installed plugins whose licence activation you
   skipped; they stay listed until you confirm the activation. Each has an
-  *Activate* button that opens the activation steps for that plugin; when
-  they close, the summary comes back without the plugins you confirmed.
+  *Activate* button that opens the activation window for that plugin
+  (*Activating licences* below); when it closes, the summary comes back
+  without the plugins you confirmed.
 
 The list scrolls with the mouse wheel, the arrow keys, Page Up, Page Down,
 Home and End, and nothing is cut short. At the bottom, **Install N plugins**
@@ -207,7 +208,8 @@ installs:
 
 When the run ends, the window shows how many plugins were installed and how
 many failed, with the reason for each failure. Closing it hands over to
-licence activation for the installed plugins that need it.
+licence activation for the installed plugins that need it (*Activating
+licences* below).
 
 ### Restart and reopen
 
@@ -217,6 +219,62 @@ project you were working on reopens on its own once REAPER has finished
 starting, unless it is already open or its file is gone. If an installed
 plugin still does not appear, rescan in REAPER:
 *Preferences > Plug-ins > VST > Re-scan*.
+
+## Activating licences
+
+Every plugin is activated with your own licence and your own vendor account.
+The group's server holds installers only, never licence keys, serials or
+vendor accounts, and the manager never shares, uploads or bypasses an
+activation: it shows you how each plugin is activated, opens the vendor's app
+or page, and remembers what you have not confirmed yet. It cannot check that
+a plugin is really activated, so it takes your word for it.
+
+### The activation window
+
+After an install run, once you close its final summary, the activation window
+walks you through the installed plugins whose catalogue entry names an
+activation method, one step at a time. Plugins activated in the same vendor
+app share one step; any other plugin has a step of its own. Each step names
+the plugin or plugins, how they are activated — in the vendor app, with your
+serial number, or by signing in to your vendor account — and the maintainer's
+instructions, with three buttons:
+
+- **Activate** — opens what the activation needs: the vendor app when it is
+  installed where the catalogue expects it, otherwise its download page; the
+  vendor's page for a serial or a sign-in. When you have saved the plugin's
+  serial (*Saving a serial* below), it is also copied to the clipboard, ready
+  to paste. A line under the step says what was opened, or why nothing was.
+- **Done** — you have activated it: the plugins of the step are no longer
+  pending, and the next step opens.
+- **Later** — you will activate it another time: the plugins stay pending,
+  and the next step opens.
+
+Closing the window, or pressing Escape, leaves every step you have not marked
+Done pending. When the window closes, the manager goes on to its restart
+message.
+
+### Activation pending
+
+A plugin stays "activation pending" from the moment it enters the activation
+window until you press Done for it. Whenever a check finds a project using a
+pending plugin, the summary window lists it under **Activation pending** with
+an *Activate* button that opens the activation window for that plugin again
+(*The summary window* above). The reminder cannot be switched off: it ends
+when you confirm the activation.
+
+### Saving a serial
+
+When you press Done on a plugin activated with a serial number, the manager
+offers to save the serial on your machine, in a masked field; Cancel, or an
+empty field, saves nothing, and the offer is not made again once a serial is
+saved. A saved serial makes a reactivation faster: Activate copies it to the
+clipboard. It is kept in your system's secret store, as the server password is
+(*The server password* below) — on Windows encrypted for your Windows account,
+under the `secrets` folder beside `config.ini`; on macOS in your default
+Keychain, as an item named `ReaperPluginManager-serial` with the plugin's
+catalogue id as its account. It is never written to a file in clear, never
+put on a command line, and never sent anywhere. When the secret store cannot
+be used, the serial is not saved or copied, and the manager says why.
 
 ## Settings
 

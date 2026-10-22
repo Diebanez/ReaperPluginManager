@@ -316,7 +316,7 @@ Feature: licence-activation
 
 ## 32. Update documentation for feature `licence-activation`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md, server/README.md
 Preconditions: 29, 30, 31
