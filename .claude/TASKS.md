@@ -116,7 +116,7 @@ Feature: plugin-detection
 
 ## 12. Update documentation for feature `plugin-detection`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md, README.md
 Preconditions: 9, 10, 11
