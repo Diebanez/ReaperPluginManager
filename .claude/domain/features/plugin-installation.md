@@ -47,8 +47,8 @@ processes.
   only complete lines.
 - **Progress window** — one line per plugin: `Name — queued / downloading… /
   verifying… / installing… / installed / failed` (green installed, red
-  failed). Closing it leaves the run going; the final summary appears
-  anyway. Nothing in the status file 30 s after launch → the helper is
+  failed); an installed plugin's note shows under its line. Closing it
+  leaves the run going; the final summary appears anyway. Nothing in the status file 30 s after launch → the helper is
   reported as not started.
 - **Completion** — at `DONE`: a summary of installed and failed plugins
   with each failure's message; the installed entries go to
@@ -68,9 +68,14 @@ processes.
   (destination folders, test switches) defined by each helper.
 - **Per job line** — `ITEM <id> download` → download into `work/<id>/` (file
   name = last URL segment, decoded) → with a checksum, `ITEM <id> verify`
-  (case-insensitive SHA-256 compare) → `ITEM <id> install` → `OK <id>` or
-  `FAIL <id> <message>`. A failure stops only that plugin. `work/<id>` is
-  deleted after success and kept after failure.
+  (case-insensitive SHA-256 compare) → `ITEM <id> install` → optionally
+  `NOTE <id> <message>` → `OK <id>` or `FAIL <id> <message>`. A failure stops
+  only that plugin. `work/<id>` is deleted after success and kept after
+  failure.
+- **Notes** — `NOTE <id> <message>`, written before the entry's `OK`, tells
+  the member something about a plugin that still installed, and leaves the
+  item's state unchanged. The Windows helper uses it to name the VST2 files
+  it skipped because `vst2_dir` is not set.
 - **Routing of extracted plugins** (zip, or dmg without a package) — copy
   only the outermost plugin items, without descending into an item already
   found (a `.vst3` bundle contains a `.vst3` file of the same name); delete
@@ -87,10 +92,12 @@ processes.
   server URL + `file` with `\` → `/`, leading `/` removed, every character
   outside `[A-Za-z0-9-._~/]` encoded as `%XX`.
 - **Status file** (`status.txt`) — appended by the helper: `START <n>`,
-  `ITEM <id> download|verify|install`, `OK <id>`, `FAIL <id> <message>`,
-  `DONE <ok> <failed>`. Only lines ending in `\n` count (`\r\n` tolerated);
-  a leading BOM is ignored; `START` may appear twice (Windows elevation).
-  Deleted before every run.
+  `ITEM <id> download|verify|install`, `NOTE <id> <message>`, `OK <id>`,
+  `FAIL <id> <message>`, `DONE <ok> <failed>`. Only lines ending in `\n`
+  count (`\r\n` tolerated); a leading BOM is ignored; `START` may appear
+  twice (Windows elevation); unknown lines are skipped.
+  `core.install.parse_status` keeps a `NOTE` on its item as `note` without
+  changing the item's state. Deleted before every run.
 - **Work folder** (`work/`) — downloads, per plugin id.
 - **Reopen record** — persistent ExtState `ReaperPluginManager/reopen` = the
   project path.
