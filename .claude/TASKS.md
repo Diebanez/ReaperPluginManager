@@ -346,7 +346,7 @@ Feature: catalogue-editor
 
 ## 35. Entry form, checksums and removal
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua
 Preconditions: 34

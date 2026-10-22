@@ -1,8 +1,10 @@
 -- RPM_CatalogueManager.lua: the "ReaperPluginManager: Catalogue management"
 -- action. The maintainer's ReaImGui window over the local catalogue draft:
 -- every draft entry, what changed since the catalogue the draft started from,
--- the validation problems that block publishing, and the three ways to add an
--- entry: from REAPER's installed plugins, by hand, or from a draft entry file.
+-- the validation problems that block publishing, the three ways to add an
+-- entry (from REAPER's installed plugins, by hand, or from a draft entry file)
+-- and the entry form that edits every field of an entry, attaches its
+-- installers with their checksums, and removes it.
 
 local script_dir = debug.getinfo(1, "S").source:match("^@(.*[\\/])")
 if script_dir and not package.path:find(script_dir, 1, true) then
@@ -45,6 +47,7 @@ local state = {
   filter = "",    -- the text filtering those groups
   hand = { name = "", vendor = "", match = "" }, -- the Add by hand fields
   draft_files = {}, -- the file names Import draft offers
+  form = nil,     -- the entry form, while one is open
 }
 
 local function message(text)
@@ -180,20 +183,201 @@ local function activation_of(entry)
   return type(method) == "string" and method ~= "" and method or "none"
 end
 
--- The validation problems of the draft catalogue, by entry position, and the
--- reason the whole catalogue is invalid, if it is.
-local function problems_of(catalogue)
+---------------------------------------------------------------------------
+-- Installer files. Besides `catalogue` and `base`, the draft keeps `files`:
+-- per installer server path, a record. `uploaded` is true once the file is
+-- on the server, so publishing never uploads it; a local file attached in
+-- the entry form also has `source` (its local path), `size` and `sha256`, and
+-- `uploaded` false until publishing uploads it.
+---------------------------------------------------------------------------
+
+local PLATFORMS = { "windows", "macos" }
+
+local SLOT_NAMES = { windows = "Windows", macos = "macOS", shared = "Shared package (Windows and macOS)" }
+
+-- The installer types the form offers per slot; a shared package must suit
+-- both platforms.
+local SLOT_TYPES = { windows = { "exe", "msi", "zip" }, macos = { "pkg", "dmg", "zip" }, shared = { "zip" } }
+
+local INSTALLER_TYPES = {
+  windows = { exe = true, msi = true, zip = true },
+  macos = { pkg = true, dmg = true, zip = true },
+}
+
+local DESTINATIONS = { vst3 = true, vst2 = true, clap = true, au = true }
+
+local CHECKSUM_TIMEOUT_MS = 600000
+
+local function file_exists(path)
+  local f = io.open(path, "rb")
+  if f then
+    f:close()
+    return true
+  end
+  return false
+end
+
+local function file_size(path)
+  local f = io.open(path, "rb")
+  if not f then
+    return nil
+  end
+  local size = f:seek("end")
+  f:close()
+  return size
+end
+
+local function base_name(path)
+  return path:match("([^\\/]+)$") or path
+end
+
+local function is_absolute(path)
+  return path:match("^/") or path:match("^%a:[\\/]") or path:match("^\\\\")
+end
+
+-- The server path the local installer `source` gets in the entry `id`, for
+-- the form slot `slot`: `<id>/windows/<file>`, `<id>/macos/<file>`, or
+-- `<id>/<file>` for a package shared by both platforms.
+local function server_path(id, slot, source)
+  if slot == "shared" then
+    return id .. "/" .. base_name(source)
+  end
+  return id .. "/" .. slot .. "/" .. base_name(source)
+end
+
+-- The record of the installer at the server path `path` in `files`, or nil.
+local function record_of(files, path)
+  local record = is_table(files) and files[path]
+  return is_table(record) and record or nil
+end
+
+-- The local file a record still has to upload, or nil.
+local function pending_source(record)
+  if record and record.uploaded ~= true and type(record.source) == "string" and record.source ~= "" then
+    return record.source
+  end
+  return nil
+end
+
+-- The SHA-256 digest in tool output: 64 hex digits on a line of their own,
+-- which certutil may space out. Lower-case, or nil.
+local function digest_in(output)
+  for line in output:gmatch("[^\r\n]+") do
+    local hex = line:gsub("%s", "")
+    if #hex == 64 and not hex:find("%X") then
+      return hex:lower()
+    end
+  end
+  return nil
+end
+
+-- The output of `cmd` run through ExecProcess when it exits with 0, or nil.
+local function exec_output(cmd)
+  local ret = reaper.ExecProcess(cmd, CHECKSUM_TIMEOUT_MS)
+  local code, output = (ret or ""):match("^(%-?%d+)\r?\n(.*)$")
+  if code ~= "0" then
+    return nil
+  end
+  return output
+end
+
+-- The SHA-256 of the file at `path`, computed with the OS tools: certutil,
+-- then PowerShell, on Windows; `shasum -a 256` on macOS. Returns the
+-- lower-case hex digest, or nil and why it could not be computed.
+local function sha256_of(path)
+  local p = rpm.platform()
+  if p == "windows" then
+    local output = exec_output('certutil.exe -hashfile "' .. path .. '" SHA256')
+    local hex = output and digest_in(output)
+    if hex then
+      return hex
+    end
+    output = exec_output('powershell.exe -NoProfile -NonInteractive -Command "(Get-FileHash -Algorithm SHA256 -LiteralPath \''
+      .. path:gsub("'", "''") .. '\').Hash"')
+    hex = output and digest_in(output)
+    if hex then
+      return hex
+    end
+    return nil, "neither certutil nor PowerShell could hash the file"
+  elseif p == "macos" then
+    local f = io.popen("/usr/bin/shasum -a 256 " .. core.sh_quote(path) .. " 2>/dev/null", "r")
+    local output = f and f:read("a") or ""
+    if f then
+      f:close()
+    end
+    local hex = output:match("^(%x+)%s")
+    if hex and #hex == 64 then
+      return hex:lower()
+    end
+    return nil, "shasum could not hash the file"
+  end
+  return nil, "checksums are computed only on Windows and macOS"
+end
+
+-- The problems of `entry` that catalogue validation does not see: an
+-- installer whose type does not suit its platform or cannot be told from its
+-- file extension, a destination that is neither a plugin folder nor an
+-- absolute path, and an attached local file that is gone. `files` is the
+-- draft's installer records.
+local function entry_problems(entry, files)
+  local out = {}
+  local installers = is_table(entry) and is_table(entry.installers) and entry.installers or {}
+  local seen = {}
+  for _, platform in ipairs(PLATFORMS) do
+    local inst = installers[platform]
+    local file = is_table(inst) and inst.file
+    if type(file) == "string" and file:match("%S") then
+      local label = SLOT_NAMES[platform] .. " installer"
+      local kind = text_of(inst.type)
+      if kind == "" then
+        local ext = file:match("%.(%w+)$")
+        if not (ext and INSTALLER_TYPES[platform][ext:lower()]) then
+          out[#out + 1] = label .. ": choose its type, the file extension does not tell it"
+        end
+      elseif not INSTALLER_TYPES[platform][kind] then
+        out[#out + 1] = ('%s: type "%s" is not one of %s'):format(label, kind, table.concat(SLOT_TYPES[platform], ", "))
+      end
+      local dest = inst.dest
+      if dest ~= nil and dest ~= core.json.null and dest ~= ""
+          and not (type(dest) == "string" and (DESTINATIONS[dest] or is_absolute(dest))) then
+        out[#out + 1] = ('%s: destination "%s" is not vst3, vst2, clap, au or an absolute path')
+          :format(label, tostring(dest))
+      end
+      local source = not seen[file] and pending_source(record_of(files, file))
+      seen[file] = true
+      if source and not file_exists(source) then
+        out[#out + 1] = ("the local file %s is gone: attach it again"):format(source)
+      end
+    end
+  end
+  return out
+end
+
+-- The validation problems of the draft, by entry position, and the reason
+-- the whole catalogue is invalid, if it is.
+local function problems_of(draft)
+  local catalogue = draft.catalogue
   local valid, warnings = core.catalogue.validate(catalogue)
   if not valid then
     return {}, warnings
   end
-  local problems = {}
+  local found = {}
   for _, w in ipairs(warnings) do
     -- core.catalogue.validate words each one `entry <n>[ "<id>"] skipped: <reason>`.
     local n, why = w:match("^entry (%d+).- skipped: (.*)$")
     if n then
-      problems[tonumber(n)] = why
+      found[tonumber(n)] = { why }
     end
+  end
+  for i, e in ipairs(plugins_of(catalogue)) do
+    for _, why in ipairs(entry_problems(e, draft.files)) do
+      found[i] = found[i] or {}
+      found[i][#found[i] + 1] = why
+    end
+  end
+  local problems = {}
+  for i, list in pairs(found) do
+    problems[i] = table.concat(list, "; ")
   end
   return problems
 end
@@ -210,7 +394,7 @@ local function set_draft(draft)
     end
   end
 
-  local problems, rejected = problems_of(draft.catalogue)
+  local problems, rejected = problems_of(draft)
   local counts = { entries = 0, added = 0, changed = 0, removed = 0, problems = 0 }
   local rows, kept = {}, {}
   for i, e in ipairs(plugins_of(draft.catalogue)) do
@@ -248,9 +432,7 @@ local function set_draft(draft)
 end
 
 ---------------------------------------------------------------------------
--- Adding entries. Besides `catalogue` and `base`, the draft keeps `files`:
--- per installer server path, a record whose `uploaded` is true once the file
--- is on the server, so publishing never uploads it.
+-- Adding entries
 ---------------------------------------------------------------------------
 
 local SEP = package.config:sub(1, 1)
@@ -380,6 +562,8 @@ local function mark_on_server(entry)
   end
 end
 
+local open_form -- the entry form's constructor, defined with the form below
+
 -- Imports the draft entry file `name`: adds its entry, or merges it into the
 -- draft entry with the same id after confirmation, then removes the file.
 local function import_draft(name)
@@ -406,11 +590,13 @@ local function import_draft(name)
       break
     end
   end
+  local editing = existing and state.form and state.form.entry == existing
   if existing then
     if not confirm(('The draft already has an entry with the id "%s" (%s).\n\n'
         .. "Merge %s into it? Its fields replace the entry's, its match strings are added to the entry's "
-        .. "and its installers replace the entry's for the platforms it names.")
-        :format(entry.id, text_of(existing.name), name)) then
+        .. "and its installers replace the entry's for the platforms it names.%s")
+        :format(entry.id, text_of(existing.name), name,
+          editing and state.form.dirty and "\n\nThe changes not yet saved in its entry form are lost." or "")) then
       return
     end
     core.editor.merge(existing, entry)
@@ -418,6 +604,9 @@ local function import_draft(name)
     plugins[#plugins + 1] = entry
   end
   mark_on_server(entry)
+  if editing then
+    state.form = open_form(existing)
+  end
   if not save_draft() then
     return
   end
@@ -446,6 +635,360 @@ local function toggle_panel(panel)
 end
 
 ---------------------------------------------------------------------------
+-- The entry form: an editable copy of one draft entry, written back on Save.
+-- Its installer slots are `windows` and `macos`, or `shared` for one package
+-- named under both installer keys.
+---------------------------------------------------------------------------
+
+local METHODS = { "none", "vendor-app", "serial", "sign-in" }
+
+local function trim(s)
+  return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function nonempty(s)
+  s = trim(s)
+  return s ~= "" and s or nil
+end
+
+local function copy_of(t)
+  local c = core.json.object()
+  if is_table(t) then
+    for k, v in pairs(t) do
+      c[k] = v
+    end
+  end
+  return c
+end
+
+local function index_of(list, item)
+  for i, v in ipairs(list) do
+    if v == item then
+      return i
+    end
+  end
+  return nil
+end
+
+local function label_of(entry)
+  if is_table(entry) then
+    local name = text_of(entry.name)
+    if name ~= "" then
+      return name
+    end
+    if text_of(entry.id) ~= "" then
+      return entry.id
+    end
+  end
+  return "(unnamed)"
+end
+
+-- The form slot for the installer object `inst` (absent when it is not one):
+-- its editable fields, the object itself so keys the form does not edit are
+-- kept, and the local file still to upload (`attach`, as its record holds
+-- it), with whether it is gone.
+local function slot_of(inst)
+  inst = is_table(inst) and inst or {}
+  local slot = {
+    orig = inst,
+    file = text_of(inst.file),
+    type = text_of(inst.type),
+    args = text_of(inst.args),
+    sha256 = text_of(inst.sha256),
+    dest = text_of(inst.dest),
+  }
+  local record = slot.file ~= "" and record_of(state.draft.files, slot.file) or nil
+  slot.source = pending_source(record)
+  if slot.source then
+    slot.attach = { source = slot.source, size = record.size, sha256 = record.sha256 }
+    slot.missing = not file_exists(slot.source)
+  end
+  return slot
+end
+
+local function copy_slot(slot)
+  local c = {}
+  for k, v in pairs(slot) do
+    c[k] = v
+  end
+  return c
+end
+
+-- Opens the form on the draft entry `entry`.
+function open_form(entry)
+  if not is_table(entry) then
+    return { entry = entry, broken = true }
+  end
+  local installers = is_table(entry.installers) and entry.installers or {}
+  local windows, macos = slot_of(installers.windows), slot_of(installers.macos)
+  local activation = is_table(entry.activation) and entry.activation or {}
+  local app = is_table(activation.app) and activation.app or {}
+  local function app_of(platform)
+    local a = is_table(app[platform]) and app[platform] or {}
+    return { name = text_of(a.name), path = text_of(a.path) }
+  end
+  local match = {}
+  for _, m in ipairs(is_table(entry.match) and entry.match or {}) do
+    if type(m) == "string" then
+      match[#match + 1] = m
+    end
+  end
+  local method = trim(text_of(activation.method))
+  local shared = windows.file ~= "" and windows.file == macos.file
+  return {
+    entry = entry,
+    dirty = false,
+    name = text_of(entry.name),
+    vendor = text_of(entry.vendor),
+    note = text_of(entry.note),
+    match = table.concat(match, "\n"),
+    shared = shared,
+    slots = { windows = windows, macos = macos, shared = shared and copy_slot(windows) or slot_of(nil) },
+    method = method ~= "" and method or "none",
+    app = { windows = app_of("windows"), macos = app_of("macos") },
+    url = text_of(activation.url),
+    instructions = text_of(activation.instructions),
+  }
+end
+
+-- The slots the form currently edits.
+local function active_slots(form)
+  if form.shared then
+    return { "shared" }
+  end
+  return PLATFORMS
+end
+
+-- Switches the form between one installer per platform and one shared
+-- package. The shared package starts from the Windows installer, else the
+-- macOS one, and a local file it has moves to the shared folder; going back,
+-- both platforms start from the shared package.
+local function set_shared(form, shared)
+  if form.shared == shared then
+    return
+  end
+  local slots = form.slots
+  if shared then
+    local from = slots.windows.file ~= "" and slots.windows or slots.macos
+    local slot = copy_slot(from)
+    if slot.attach then
+      slot.file = server_path(form.entry.id, "shared", slot.attach.source)
+    end
+    slots.shared = slot
+  else
+    slots.windows, slots.macos = copy_slot(slots.shared), copy_slot(slots.shared)
+  end
+  form.shared = shared
+  form.dirty = true
+end
+
+-- Picks a local installer file for the slot `key`: computes its size and
+-- SHA-256 and assigns its server path in the entry's folder. A checksum that
+-- cannot be computed stays empty, and the status line says so.
+local function attach(key)
+  local form = state.form
+  local id = text_of(form.entry.id)
+  if id == "" or id:find("%s") then
+    state.status = "This entry has no usable id, so its installers have no server folder: fix the id first."
+    return
+  end
+  local ok, source = reaper.GetUserFileNameForRead("", "Attach the " .. SLOT_NAMES[key] .. " installer", "")
+  if not ok or source == "" then
+    return
+  end
+  local size = file_size(source)
+  if not size then
+    state.status = "Cannot read " .. source
+    return
+  end
+  local hash, why = sha256_of(source)
+  local slot = form.slots[key]
+  slot.file = server_path(id, key, source)
+  slot.type = "" -- from the new file's extension
+  slot.sha256 = hash or ""
+  slot.source, slot.missing = source, false
+  slot.attach = { source = source, size = size, sha256 = hash }
+  slot.checksum_error = not hash and why or nil
+  form.dirty = true
+  if hash then
+    state.status = ("Attached %s as %s. Save to keep it."):format(source, slot.file)
+  else
+    state.status = ("Attached %s as %s, but its checksum could not be computed (%s), so it stays empty. Save to keep it.")
+      :format(source, slot.file, why)
+  end
+end
+
+-- Takes the installer out of the slot `key`.
+local function clear_slot(key)
+  state.form.slots[key] = slot_of(nil)
+  state.form.dirty = true
+end
+
+-- The installer object of `slot`, or nil when it has no file.
+local function installer_of(slot)
+  if trim(slot.file) == "" then
+    return nil
+  end
+  local inst = copy_of(slot.orig)
+  inst.file = trim(slot.file)
+  inst.type = nonempty(slot.type)
+  inst.args = nonempty(slot.args)
+  inst.sha256 = nonempty(slot.sha256)
+  inst.dest = nonempty(slot.dest)
+  return inst
+end
+
+-- The entry the form describes, keeping every key it does not edit.
+local function entry_of(form)
+  local entry = copy_of(form.entry)
+  entry.name = trim(form.name)
+  entry.vendor = nonempty(form.vendor)
+  entry.note = nonempty(form.note)
+  local match, seen = core.json.array(), {}
+  for line in form.match:gmatch("[^\r\n]+") do
+    local m = trim(line)
+    local k = core.norm(m)
+    if k ~= "" and not seen[k] then
+      seen[k] = true
+      match[#match + 1] = m
+    end
+  end
+  entry.match = match
+
+  local installers = copy_of(entry.installers)
+  if form.shared then
+    installers.windows, installers.macos = installer_of(form.slots.shared), installer_of(form.slots.shared)
+  else
+    installers.windows, installers.macos = installer_of(form.slots.windows), installer_of(form.slots.macos)
+  end
+  entry.installers = next(installers) ~= nil and installers or nil
+
+  if form.method == "none" then
+    entry.activation = nil
+  else
+    local activation = copy_of(entry.activation)
+    activation.method = form.method
+    activation.url = nonempty(form.url)
+    activation.instructions = nonempty(form.instructions)
+    activation.app = nil
+    if form.method == "vendor-app" then
+      local orig = is_table(entry.activation) and entry.activation.app
+      local app = copy_of(orig)
+      for _, platform in ipairs(PLATFORMS) do
+        local a = copy_of(is_table(orig) and orig[platform])
+        a.name, a.path = nonempty(form.app[platform].name), nonempty(form.app[platform].path)
+        app[platform] = next(a) ~= nil and a or nil
+      end
+      activation.app = next(app) ~= nil and app or nil
+    end
+    entry.activation = activation
+  end
+  return entry
+end
+
+-- Drops the records of local files no draft installer names any more, so
+-- publishing never uploads them; records of files already on the server stay.
+local function prune_files()
+  local files = state.draft.files
+  if not is_table(files) then
+    return
+  end
+  local named = {}
+  for _, e in ipairs(plugins_of(state.draft.catalogue)) do
+    for _, path in ipairs(core.editor.installer_paths(e)) do
+      named[path] = true
+    end
+  end
+  for path, record in pairs(files) do
+    if not named[path] and pending_source(record_of(files, path)) then
+      files[path] = nil
+    end
+  end
+end
+
+-- Writes the form back into the draft: the entry, and a record for every
+-- local installer attached in it.
+local function save_form()
+  local form = state.form
+  local plugins = draft_plugins()
+  if not plugins then
+    return
+  end
+  local pos = index_of(plugins, form.entry)
+  if not pos then
+    state.form = nil
+    state.status = "The entry is no longer in the draft."
+    return
+  end
+  local entry = entry_of(form)
+  plugins[pos] = entry
+  local files = is_table(state.draft.files) and state.draft.files or core.json.object()
+  state.draft.files = files
+  for _, key in ipairs(active_slots(form)) do
+    local slot = form.slots[key]
+    if slot.attach and trim(slot.file) ~= "" then
+      files[trim(slot.file)] = core.json.object({
+        source = slot.attach.source,
+        size = slot.attach.size,
+        sha256 = slot.attach.sha256,
+        uploaded = false,
+      })
+    end
+  end
+  prune_files()
+  if save_draft() then
+    state.form = open_form(entry)
+    state.status = ('Saved "%s".'):format(label_of(entry))
+  end
+end
+
+-- True when the open form may be left: it has no unsaved change, or the user
+-- agrees to lose it.
+local function leave_form()
+  local form = state.form
+  return not (form and form.dirty)
+    or confirm(('Discard the changes not yet saved to "%s"?'):format(label_of(form.entry)))
+end
+
+local function select_entry(entry)
+  if state.form and state.form.entry == entry then
+    return
+  end
+  if leave_form() then
+    state.form = open_form(entry)
+  end
+end
+
+local function close_form()
+  if leave_form() then
+    state.form = nil
+  end
+end
+
+-- Removes the entry of the open form from the draft, after confirmation.
+local function remove_entry()
+  local entry = state.form.entry
+  local plugins = draft_plugins()
+  if not plugins then
+    return
+  end
+  local pos = index_of(plugins, entry)
+  if not pos then
+    state.form = nil
+    return
+  end
+  if not confirm(('Remove "%s" from the draft?'):format(label_of(entry))) then
+    return
+  end
+  table.remove(plugins, pos)
+  state.form = nil
+  prune_files()
+  if save_draft() then
+    state.status = ('Removed "%s" from the draft.'):format(label_of(entry))
+  end
+end
+
+---------------------------------------------------------------------------
 -- Publish and Discard
 ---------------------------------------------------------------------------
 
@@ -459,6 +1002,11 @@ local function publisher()
 end
 
 local function publish()
+  if state.form and state.form.dirty then
+    state.status = ('Save or revert the changes to "%s" before publishing.'):format(label_of(state.form.entry))
+    return
+  end
+  set_draft(state.draft) -- looks again for attached local files that are gone
   if state.rejected or state.counts.problems > 0 then
     state.status = "Publishing is blocked: fix the problems shown in the list first."
     return
@@ -471,6 +1019,7 @@ local function publish()
   local ok, report = run(state.draft)
   local text = type(report) == "string" and report
     or (ok and "The catalogue was published." or "Publishing failed.")
+  state.form = nil
   local draft, err = rpm.draft.load()
   if draft then
     set_draft(draft)
@@ -519,7 +1068,8 @@ local function summary()
   return text
 end
 
-local function draw_row(row)
+-- One list row; picking a draft entry's row opens it in the entry form.
+local function draw_row(row, i)
   local e = row.entry
   local removed = row.change == "removed"
   local function cell(text)
@@ -531,7 +1081,15 @@ local function draw_row(row)
     end
   end
   ImGui.TableNextRow(ctx)
-  cell(is_table(e) and (text_of(e.name) ~= "" and e.name or text_of(e.id)) or "")
+  ImGui.TableNextColumn(ctx)
+  if removed then
+    ImGui.TextDisabled(ctx, label_of(e))
+  else
+    local selected = state.form ~= nil and state.form.entry == e
+    if ImGui.Selectable(ctx, label_of(e) .. "##row" .. i, selected, ImGui.SelectableFlags_SpanAllColumns) then
+      state.action = function() select_entry(e) end
+    end
+  end
   cell(is_table(e) and text_of(e.vendor) or "")
   cell(platforms_of(e))
   cell(activation_of(e))
@@ -545,14 +1103,16 @@ local function draw_row(row)
   end
 end
 
-local function draw_list()
+-- The list of entries, filling the window below the panels, or `height`
+-- pixels when it is given.
+local function draw_list(height)
   if #state.rows == 0 then
     ImGui.TextDisabled(ctx, "The draft has no entries.")
     return
   end
   local flags = ImGui.TableFlags_Borders | ImGui.TableFlags_RowBg | ImGui.TableFlags_Resizable
     | ImGui.TableFlags_ScrollY | ImGui.TableFlags_SizingStretchProp
-  if not ImGui.BeginTable(ctx, "entries", 6, flags) then
+  if not ImGui.BeginTable(ctx, "entries", 6, flags, 0, height or 0) then
     return
   end
   local stretch = ImGui.TableColumnFlags_WidthStretch
@@ -564,8 +1124,8 @@ local function draw_list()
   ImGui.TableSetupColumn(ctx, "Change", stretch, 1)
   ImGui.TableSetupColumn(ctx, "Problem", stretch, 3)
   ImGui.TableHeadersRow(ctx)
-  for _, row in ipairs(state.rows) do
-    draw_row(row)
+  for i, row in ipairs(state.rows) do
+    draw_row(row, i)
   end
   ImGui.EndTable(ctx)
 end
@@ -622,6 +1182,188 @@ local function draw_import()
   end
 end
 
+local TYPE_LABELS = { [""] = "From the file extension" }
+
+local METHOD_LABELS = {
+  none = "none - no activation",
+  ["vendor-app"] = "vendor-app - the vendor's app",
+  serial = "serial - a serial on the vendor page",
+  ["sign-in"] = "sign-in - signing in on the vendor page",
+}
+
+-- A combo choosing `value` among `options`, shown through `labels` where it
+-- names them; a value not among the options is offered too, so it is never
+-- lost. Returns whether it changed, and the value.
+local function combo(label, value, options, labels)
+  local shown = {}
+  for _, o in ipairs(options) do
+    shown[#shown + 1] = o
+  end
+  if value ~= "" and not index_of(shown, value) then
+    shown[#shown + 1] = value
+  end
+  local function text(o)
+    return labels and labels[o] or o
+  end
+  local changed = false
+  if ImGui.BeginCombo(ctx, label, text(value)) then
+    for _, o in ipairs(shown) do
+      if ImGui.Selectable(ctx, text(o), o == value) then
+        value, changed = o, true
+      end
+    end
+    ImGui.EndCombo(ctx)
+  end
+  return changed, value
+end
+
+local function edited(form, changed)
+  if changed then
+    form.dirty = true
+  end
+end
+
+-- The installer slot `key` of `form`: where its file is, its checksum, and
+-- its type, arguments and destination.
+local function draw_slot(form, key)
+  local slot = form.slots[key]
+  local rv
+  ImGui.PushID(ctx, key)
+  ImGui.SeparatorText(ctx, SLOT_NAMES[key])
+  if slot.file == "" then
+    ImGui.TextDisabled(ctx, "No installer.")
+  else
+    wrapped("Server path: " .. slot.file)
+    if slot.missing then
+      wrapped("Local file " .. slot.source .. " is gone: attach it again.", COLOURS.problem)
+    elseif slot.source then
+      wrapped("Local file " .. slot.source .. ", uploaded on Publish.")
+    else
+      wrapped("Already on the server: it keeps its path and is never uploaded.")
+    end
+    if slot.sha256 ~= "" then
+      wrapped("SHA-256: " .. slot.sha256)
+    elseif slot.checksum_error then
+      wrapped("SHA-256: none, it could not be computed: " .. slot.checksum_error, COLOURS.problem)
+    else
+      ImGui.TextDisabled(ctx, "SHA-256: none")
+    end
+  end
+  if ImGui.Button(ctx, slot.file == "" and "Attach file..." or "Attach another file...") then
+    state.action = function() attach(key) end
+  end
+  if slot.file ~= "" then
+    ImGui.SameLine(ctx)
+    if ImGui.Button(ctx, "Remove installer") then
+      state.action = function() clear_slot(key) end
+    end
+  end
+  local types = { "" }
+  for _, t in ipairs(SLOT_TYPES[key]) do
+    types[#types + 1] = t
+  end
+  rv, slot.type = combo("Type", slot.type, types, TYPE_LABELS)
+  edited(form, rv)
+  if key ~= "macos" then
+    rv, slot.args = ImGui.InputTextWithHint(ctx, "Silent-install arguments", "Windows switches or MSI properties",
+      slot.args)
+    edited(form, rv)
+  end
+  rv, slot.dest = ImGui.InputTextWithHint(ctx, "Destination", "for archives: vst3, vst2, clap, au or an absolute path",
+    slot.dest)
+  edited(form, rv)
+  ImGui.PopID(ctx)
+end
+
+local function draw_activation(form)
+  local rv
+  ImGui.SeparatorText(ctx, "Activation")
+  rv, form.method = combo("Method", form.method, METHODS, METHOD_LABELS)
+  edited(form, rv)
+  if form.method == "none" then
+    return
+  end
+  if form.method == "vendor-app" then
+    for _, platform in ipairs(PLATFORMS) do
+      local a = form.app[platform]
+      ImGui.PushID(ctx, "app-" .. platform)
+      rv, a.name = ImGui.InputText(ctx, SLOT_NAMES[platform] .. " app name", a.name)
+      edited(form, rv)
+      rv, a.path = ImGui.InputTextWithHint(ctx, SLOT_NAMES[platform] .. " app location",
+        platform == "windows" and "path of the app's executable" or "path of the .app bundle", a.path)
+      edited(form, rv)
+      ImGui.PopID(ctx)
+    end
+  end
+  rv, form.url = ImGui.InputTextWithHint(ctx, "URL",
+    form.method == "vendor-app" and "the app's download page" or "the vendor page", form.url)
+  edited(form, rv)
+  rv, form.instructions = ImGui.InputTextMultiline(ctx, "Instructions", form.instructions, 0, 45)
+  edited(form, rv)
+end
+
+local function draw_form()
+  local form = state.form
+  if form.broken then
+    wrapped("This entry is not a catalogue entry object, so it cannot be edited: remove it.", COLOURS.problem)
+    if ImGui.Button(ctx, "Remove entry") then
+      state.action = remove_entry
+    end
+    ImGui.SameLine(ctx)
+    if ImGui.Button(ctx, "Close") then
+      state.action = close_form
+    end
+    return
+  end
+  local rv
+  ImGui.Text(ctx, "Entry " .. (text_of(form.entry.id) ~= "" and form.entry.id or "(no id)"))
+  ImGui.SameLine(ctx, 0, 24)
+  ImGui.BeginDisabled(ctx, not form.dirty)
+  if ImGui.Button(ctx, "Save") then
+    state.action = save_form
+  end
+  ImGui.SameLine(ctx)
+  if ImGui.Button(ctx, "Revert") then
+    state.action = function() state.form = open_form(form.entry) end
+  end
+  ImGui.EndDisabled(ctx)
+  ImGui.SameLine(ctx)
+  if ImGui.Button(ctx, "Remove entry") then
+    state.action = remove_entry
+  end
+  ImGui.SameLine(ctx)
+  if ImGui.Button(ctx, "Close") then
+    state.action = close_form
+  end
+
+  rv, form.name = ImGui.InputText(ctx, "Name", form.name)
+  edited(form, rv)
+  rv, form.vendor = ImGui.InputText(ctx, "Vendor", form.vendor)
+  edited(form, rv)
+  rv, form.note = ImGui.InputTextWithHint(ctx, "Note", "shown beside the name", form.note)
+  edited(form, rv)
+  wrapped("Match strings, one per line: the names the plugin goes by in projects.")
+  rv, form.match = ImGui.InputTextMultiline(ctx, "##match", form.match, 0, 60)
+  edited(form, rv)
+
+  ImGui.SeparatorText(ctx, "Installers")
+  if ImGui.RadioButton(ctx, "One installer per platform", not form.shared) then
+    set_shared(form, false)
+  end
+  ImGui.SameLine(ctx)
+  if ImGui.RadioButton(ctx, "One package shared by both platforms", form.shared) then
+    set_shared(form, true)
+  end
+  if form.shared then
+    draw_slot(form, "shared")
+  else
+    draw_slot(form, "windows")
+    draw_slot(form, "macos")
+  end
+
+  draw_activation(form)
+end
+
 local PANELS = {
   { key = "installed", button = "Add from installed", draw = draw_installed },
   { key = "hand", button = "Add by hand", draw = draw_by_hand },
@@ -659,11 +1401,22 @@ local function draw()
     end
   end
   ImGui.Separator(ctx)
-  draw_list()
+  if not state.form then
+    if #state.rows > 0 then
+      ImGui.TextDisabled(ctx, "Pick an entry to edit or remove it.")
+    end
+    draw_list()
+    return
+  end
+  draw_list(170)
+  if ImGui.BeginChild(ctx, "form", 0, 0, ImGui.ChildFlags_Border) then
+    draw_form()
+    ImGui.EndChild(ctx)
+  end
 end
 
 local function loop()
-  ImGui.SetNextWindowSize(ctx, 820, 480, ImGui.Cond_FirstUseEver)
+  ImGui.SetNextWindowSize(ctx, 860, 720, ImGui.Cond_FirstUseEver)
   local visible, open = ImGui.Begin(ctx, TITLE, true)
   if visible then
     draw()
@@ -674,6 +1427,9 @@ local function loop()
   state.action = nil
   if action then
     action()
+  end
+  if not open and not state.closing and not leave_form() then
+    open = true
   end
   if open and not state.closing then
     reaper.defer(loop)
