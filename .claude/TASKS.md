@@ -256,7 +256,7 @@ Feature: install-helper-windows
 
 ## 26. macOS helper core: download, verify, zip routing, quarantine
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
 Preconditions: 20
