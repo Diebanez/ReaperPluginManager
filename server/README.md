@@ -71,7 +71,8 @@ Each installer object holds:
 - `dest` — for an archive, or a macOS disk image without a package, where its
   plugins are put: `vst3`, `vst2`, `clap`, `au` or an absolute folder path.
   When it is left out, each plugin goes to the standard folder for its file
-  type; *Installers on macOS* below lists the macOS folders.
+  type; *Installers on Windows* and *Installers on macOS* below list the
+  folders of each platform.
 
 ### One package for both platforms
 
@@ -94,6 +95,58 @@ offered for installing.
   `match` array, with spaces in its `id`, or repeating an earlier entry's
   `id`, is skipped and reported in REAPER's console; the other entries stay
   usable.
+
+## Installers on Windows
+
+On Windows, the manager installs a `windows` installer according to its
+`type`, after one administrator prompt per run; when the member refuses it,
+every plugin of the run fails with "administrator permission denied".
+
+- `exe` — the installer is run with the entry's `args`. Without `args` it
+  opens its own installer window, which the member clicks through.
+- `msi` — the package is installed with `msiexec /i <file> /qn /norestart`,
+  followed by the entry's `args`.
+- `zip` — the archive is unpacked and the plugins in it are copied to their
+  folders, as described below.
+
+Any other type fails with "installer type not supported on Windows".
+
+An `exe` or `msi` installer succeeds when it exits with code `0`, or with
+`3010`, which asks for a restart the manager does not perform. Any other code
+fails with "installer exited with code <n>".
+
+### Where plugins are copied
+
+From a `zip`, the manager copies every plugin it finds to the folder for its
+file type:
+
+- `.vst3` (file or folder) — `C:\Program Files\Common Files\VST3`
+- `.clap` — `C:\Program Files\Common Files\CLAP`
+- `.dll` (VST2) — the folder in the member's `vst2_dir` setting, described in
+  the member guide. Windows has no standard VST2 folder: with the setting
+  empty, an archive holding a `.dll` fails with "no VST2 folder set" and
+  nothing from it is copied.
+
+Only the outermost plugins are copied, never the contents of a `.vst3`
+folder, and `__MACOSX` folders are ignored. A plugin of the same name already
+in the folder is replaced. When the archive holds more than one copy of the
+same file name, the copies whose folder path in the archive contains a word
+marking them 32-bit (`x86`, `32bit`, `32-bit`, `win32` or `32`) are skipped,
+as long as one copy is not so marked. An archive holding no `.vst3`, `.clap` or `.dll` fails.
+
+An entry's `dest` sends every plugin to one folder instead: `vst3`, `clap` and
+`vst2` name the folders above, and an absolute path — a drive path such as
+`D:\Plugins` or a network path such as `\\server\share\Plugins` — names any
+other folder. `au` and any other value fail on Windows.
+
+### Test silent switches by hand
+
+Before publishing an `exe` or `msi` entry with `args`, run the installer with
+those switches by hand on a Windows machine, from an administrator command
+prompt, and check that it installs without opening a window and exits with
+`0` or `3010`. Silent switches differ from one installer maker to the next,
+and an installer that ignores them opens its window and waits for the member,
+holding up the rest of the run.
 
 ## Installers on macOS
 
