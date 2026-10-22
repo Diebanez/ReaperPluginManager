@@ -356,7 +356,7 @@ Feature: catalogue-editor
 
 ## 36. Update documentation for feature `catalogue-editor`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md
 Preconditions: 33, 34, 35

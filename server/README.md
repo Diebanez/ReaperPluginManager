@@ -2,8 +2,9 @@
 
 This guide is for the group's maintainer: the person who keeps the plugin
 catalogue on the group's server. The catalogue is the file `manifest.json` at
-the server root; `manifest.example.json` in this folder is a complete example
-to start from.
+the server root, which you curate inside REAPER with the Catalogue management
+action (*Curating the catalogue* below); `manifest.example.json` in this
+folder is a complete example of its format.
 
 ## Server address
 
@@ -30,6 +31,121 @@ refuses them, and the manager reports that writing over HTTPS needs WebDAV.
 Each machine uses one server account. Give members a read-only account and
 yourself one allowed to upload, rename and delete files and, over FTP, to
 create folders.
+
+## Curating the catalogue
+
+You shape the catalogue with the **ReaperPluginManager: Catalogue
+management** action rather than by editing `manifest.json`: inside REAPER the
+manager reads how each installed plugin names itself in projects, so it fills
+in the match strings for you.
+
+### ReaImGui
+
+The action needs the ReaImGui extension, version 0.9 or later; members do not.
+Install it through ReaPack (*Extensions > ReaPack > Browse packages*, search
+for ReaImGui) and restart REAPER. Without it, the action says so and opens
+nothing.
+
+### The local draft
+
+The action works on a draft kept on your machine, `draft.json` in the
+`ReaperPluginManager` folder of REAPER's resource path. The first time it
+opens, it fetches the catalogue from the server and starts the draft from it.
+When the server's catalogue cannot be used, the draft starts from the copy
+cached on your machine and the window says so; with neither, the action offers
+to start from an empty catalogue. A draft file that cannot be read is offered
+for discarding, and a new draft is then started from the catalogue.
+
+The draft survives closing the window and restarting REAPER. Each change is
+stored in it as you make it — an entry form's changes when you press **Save**
+— until you publish the draft or press **Discard**, which deletes it after
+confirmation.
+
+The window lists every entry of the draft with its name, vendor, the
+platforms its installers cover and its activation method. An entry added,
+changed or removed since the catalogue the draft started from is marked so; a
+removed entry stays listed, greyed out, until the draft is published. A
+problem is shown beside its entry, and publishing is blocked until every one
+is fixed:
+
+- anything that makes the manager skip the entry, as *How the manager reads
+  the catalogue* below lists;
+- an installer whose type does not suit its platform, or whose type is left
+  to a file extension that is not one of the platform's types;
+- a destination that is not `vst3`, `vst2`, `clap`, `au` or an absolute path;
+- a local installer file attached to the entry that is gone from your disk.
+
+### Adding an entry
+
+Three buttons add an entry. A new entry's `id` is made from its name:
+lower-cased, each run of characters other than `a`–`z` and digits turned into
+one `-`, with `-2`, `-3` and so on appended when the id is already taken.
+
+- **Add from installed** lists the plugins installed in REAPER, every format
+  of one plugin on one line, leaving out Cockos plugins, JSFX and plugins an
+  entry of the draft already matches; a filter narrows the list. Picking a
+  plugin adds an entry with its name, its vendor (the last parenthesis of
+  REAPER's name for it) and, as match strings, its name as REAPER shows it
+  without the format prefix plus the file name or id of each installed format
+  — the strings *Match strings* below asks for.
+- **Add by hand** takes a name, an optional vendor and at least one match
+  string, one per line.
+- **Import draft** lists the draft entry files, the `.json` files in the
+  `drafts` folder beside `draft.json`. A draft entry file is a catalogue in
+  the format below holding exactly one valid entry; any other file is refused
+  with the reason. Picking a file adds its entry, or, when the draft already
+  has an entry with the same `id`, merges into it after confirmation: the
+  file's fields replace the entry's, its match strings are added to the
+  entry's, and its installers replace the entry's for the platforms it names.
+  The installers an imported entry names are taken as already on the server:
+  they keep their paths and are never uploaded. The file is deleted once
+  imported.
+
+### The entry form
+
+Picking an entry in the list opens it in the entry form, where you edit its
+name, vendor, note and match strings (one per line), its installers and its
+activation. **Save** writes the changes into the draft, **Revert** drops them,
+and **Remove entry** removes the entry from the draft after confirmation.
+Leaving an entry with unsaved changes — picking another, closing the form or
+the window — asks first, and publishing waits until they are saved or
+reverted.
+
+The installers are set as **One installer per platform**, a Windows and a
+macOS installer, or as **One package shared by both platforms**, one file
+named under both `windows` and `macos` (*One package for both platforms*
+below). Each installer has:
+
+- **Attach file...** — picks the installer from your disk. The manager
+  computes its SHA-256 checksum — with `certutil`, or PowerShell when that
+  fails, on Windows; with `shasum -a 256` on macOS — and assigns its server
+  path (*Where installers go on the server* below); the file is uploaded when
+  the draft is published. A checksum that cannot be computed stays empty, and
+  the form says why. An installer already on the server keeps its path and is
+  never uploaded.
+- **Remove installer** — takes the installer out of the entry.
+- **Type** — the `type` field, or *From the file extension* to leave it out.
+  A shared package offers `zip` only.
+- **Silent-install arguments** — the `args` field; not on the macOS
+  installer.
+- **Destination** — the `dest` field.
+
+The activation is set by its method — `none`, `vendor-app`, `serial` or
+`sign-in` — and, for any method but `none`, a URL and instructions;
+`vendor-app` also takes the app's name and location on each platform.
+
+### Where installers go on the server
+
+An installer attached from your disk is uploaded into a folder named after
+its entry's `id`, under its own file name:
+
+- `<id>/windows/<file>` — the Windows installer;
+- `<id>/macos/<file>` — the macOS installer;
+- `<id>/<file>` — a package shared by both platforms.
+
+For example, `acme-compressor/windows/AcmeCompressor-2.1.0-win.exe`. An entry
+needs a usable `id` — not empty, without spaces — before an installer can be
+attached. An installer an imported draft entry names keeps its own path.
 
 ## The catalogue format
 
@@ -78,8 +194,9 @@ Each installer object holds:
 
 When one file installs the plugin on both Windows and macOS — typically a zip
 holding the plugin for each — name the same `file` under both `windows` and
-`macos`, as the `acme-reverb` entry of `manifest.example.json` does. The file
-is stored once on the server.
+`macos`, as the `acme-reverb` entry of `manifest.example.json` does and the
+entry form's *One package shared by both platforms* does. The file is stored
+once on the server.
 
 ### How the manager reads the catalogue
 
