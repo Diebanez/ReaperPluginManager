@@ -147,6 +147,49 @@ For example, `acme-compressor/windows/AcmeCompressor-2.1.0-win.exe`. An entry
 needs a usable `id` — not empty, without spaces — before an installer can be
 attached. An installer an imported draft entry names keeps its own path.
 
+### Publishing
+
+**Publish** sends the draft to the server, once the entry form has no unsaved
+changes and the list shows no problem. It needs the account allowed to write
+described in *Server address* above: with a read-only account the server
+refuses the first upload or rename, and publishing stops with the server's
+error, the catalogue unchanged.
+
+1. **Server-change check.** The manager first fetches the catalogue from the
+   server again. When it differs from the catalogue the draft started from —
+   changed from another machine, for example — or cannot be fetched, as on a
+   first publish to an empty server, it warns you and asks whether to publish
+   over it or stop. Stopping sends nothing; publishing over it replaces the
+   server's catalogue with the draft, and the changes made there are lost.
+2. **Uploads.** Each installer attached from your disk and not yet on the
+   server is uploaded to its server path, one at a time in the background.
+   The window shows which installer is uploading and its progress, and the
+   list cannot be edited meanwhile; REAPER stays usable, and the window stays
+   open until publishing ends. An upload writes straight to its server path,
+   so a failed one can leave a partial file there.
+3. **Resume after a failure.** When an upload fails, publishing stops before
+   the catalogue is touched and names the file that failed. The draft records
+   each installer as soon as it is uploaded, so the installers uploaded before
+   the failure stay on the server and are not uploaded again when you publish
+   again; the one that failed is uploaded again whole.
+4. **Catalogue replace.** Once every upload has succeeded, the catalogue is
+   replaced in one step: the new catalogue is uploaded beside the old one as
+   `manifest.json.uploading`, then renamed over `manifest.json`, so a member
+   never downloads a partial catalogue. When the replace fails, the catalogue
+   on the server is unchanged and no installer file is deleted. The new
+   catalogue becomes the copy cached on your machine.
+5. **Cleanup.** The manager then deletes every installer file the catalogue
+   the draft started from named and the new catalogue does not — the files of
+   a removed entry or of a removed or replaced installer. A file that cannot
+   be deleted stays on the server as an orphan, listed in the summary for you
+   to delete by hand; the catalogue still counts as published.
+6. **Summary.** The window shows the installers uploaded, the catalogue
+   replacement with its number of entries, and the files deleted or left as
+   orphans, then the draft is cleared and the window closes. The next time
+   the action opens, it starts a new draft from the published catalogue. A
+   publish that stopped shows its report in the window instead, and the draft
+   stays as it was, with the uploads already made.
+
 ## The catalogue format
 
 `manifest.json` is a JSON file in UTF-8, read as catalogue format version 1;

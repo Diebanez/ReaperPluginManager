@@ -376,7 +376,7 @@ Feature: catalogue-publish
 
 ## 38. Update documentation for feature `catalogue-publish`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md
 Preconditions: 37
