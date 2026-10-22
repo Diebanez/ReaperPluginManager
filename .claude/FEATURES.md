@@ -22,10 +22,10 @@ Tasks: none
 
 ## plugin-catalogue — Catalogue format, codec and fetch
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/plugin-catalogue.md
 Source: product-design.md § Project check
-Tasks: none
+Tasks: 5, 6, 7, 8
 
 ---
 
