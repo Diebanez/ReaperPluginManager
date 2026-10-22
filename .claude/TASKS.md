@@ -96,7 +96,7 @@ Feature: plugin-detection
 
 ## 10. Name normalization, installed check and installed grouping
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: none

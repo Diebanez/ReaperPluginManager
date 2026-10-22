@@ -783,4 +783,145 @@ function M.scan_project(text)
   return refs
 end
 
+---------------------------------------------------------------------------
+-- Name normalization, installed check and installed grouping
+---------------------------------------------------------------------------
+
+-- An installed plugin is { name, ident }: REAPER's display name and
+-- identifier, the same two fields a project reference carries.
+
+-- Lower-cases `s` and keeps only ASCII letters, digits and `.`.
+function M.norm(s)
+  return (tostring(s or ""):lower():gsub("[^a-z0-9.]", ""))
+end
+
+-- The display-name prefix before `:`, lower-cased, to its format.
+local FORMATS = {
+  vst = "vst", vsti = "vst",
+  vst3 = "vst3", vst3i = "vst3",
+  au = "au", aui = "au",
+  clap = "clap", clapi = "clap",
+  lv2 = "lv2", lv2i = "lv2",
+  dx = "dx", dxi = "dx",
+  js = "js",
+}
+
+-- Returns `s` without its last parenthesised group and the spaces before it,
+-- or `s` itself when it does not end with `)`.
+local function drop_last_paren(s)
+  if s:sub(-1) ~= ")" then
+    return s
+  end
+  local depth = 0
+  for i = #s, 1, -1 do
+    local c = s:sub(i, i)
+    if c == ")" then
+      depth = depth + 1
+    elseif c == "(" then
+      depth = depth - 1
+      if depth == 0 then
+        return trim(s:sub(1, i - 1))
+      end
+    end
+  end
+  return s
+end
+
+-- Splits a display name such as `VST3: Kontakt 7 (Native Instruments) (64
+-- out)` into its format (`vst3`, or nil for an unknown or missing prefix),
+-- base name (`Kontakt 7 (Native Instruments)`: trailing `(N out)` and `(Nch)`
+-- removed repeatedly) and bare name (`Kontakt 7`: the base name without its
+-- last parenthesis, the vendor).
+function M.split_name(display)
+  local rest = trim(tostring(display or ""))
+  local prefix, after = rest:match("^(%w+):%s*(.*)$")
+  local format = prefix and FORMATS[prefix:lower()]
+  if format then
+    rest = after
+  end
+  local base = rest
+  repeat
+    local before = base
+    base = trim((base:gsub("%(%d+ out%)$", "")))
+    base = trim((base:gsub("%(%d+ch%)$", "")))
+  until base == before
+  return format, base, drop_last_paren(base)
+end
+
+-- Identifiers ending in one of these name a plugin file or bundle.
+local PLUGIN_EXTENSIONS = {
+  dll = true, vst3 = true, vst = true, component = true,
+  clap = true, so = true, dylib = true, lv2 = true,
+}
+
+-- Returns the identifier key of `ident`: everything from `<` dropped; for a
+-- plugin file identifier (full path or file name) only the file name kept;
+-- then `norm`. Other identifiers, AU ids among them, are normalized whole.
+function M.ident_key(ident)
+  local s = trim((tostring(ident or ""):gsub("<.*$", "")))
+  local ext = s:match("%.([%w]+)$")
+  if ext and PLUGIN_EXTENSIONS[ext:lower()] then
+    s = s:match("([^/\\]*)$")
+  end
+  return M.norm(s)
+end
+
+-- The `format:norm(base name)` key of a display name.
+local function format_key(display)
+  local format, base = M.split_name(display)
+  local n = M.norm(base)
+  if n == "" then
+    return nil
+  end
+  return (format or "") .. ":" .. n
+end
+
+-- Returns the references in `refs` that are not installed: those whose
+-- identifier key matches no installed plugin's and whose `format:norm(base
+-- name)` matches none either. Order is kept.
+function M.missing(refs, installed)
+  local idents, formats = {}, {}
+  for _, p in ipairs(installed or {}) do
+    local k = M.ident_key(p.ident)
+    if k ~= "" then
+      idents[k] = true
+    end
+    local f = format_key(p.name)
+    if f then
+      formats[f] = true
+    end
+  end
+  local out = {}
+  for _, ref in ipairs(refs or {}) do
+    local f = format_key(ref.name)
+    if not idents[M.ident_key(ref.ident)] and not (f and formats[f]) then
+      out[#out + 1] = ref
+    end
+  end
+  return out
+end
+
+-- Groups the installed plugins by `norm(base name)`, so the VST2, VST3, AU
+-- and CLAP of one plugin form one group. Returns { key, base, bare, plugins }
+-- per group in order of first appearance, `base` and `bare` taken from the
+-- group's first plugin; a plugin whose base name normalizes to nothing is
+-- left out.
+function M.group_installed(installed)
+  local groups, index = {}, {}
+  for _, p in ipairs(installed or {}) do
+    local _, base, bare = M.split_name(p.name)
+    local key = M.norm(base)
+    if key ~= "" then
+      local g = index[key]
+      if not g then
+        g = { key = key, base = base, bare = bare, plugins = {} }
+        index[key] = g
+        groups[#groups + 1] = g
+      end
+      g.plugins[#g.plugins + 1] = p
+    end
+  end
+  return groups
+end
+
 return M
