@@ -68,9 +68,10 @@ Each installer object holds:
   properties for an `msi`.
 - `sha256` — the file's SHA-256 checksum in hexadecimal. When present, a
   download whose checksum differs is not installed.
-- `dest` — for an archive, where its plugins are put: `vst3`, `vst2`, `clap`,
-  `au` or an absolute folder path. When it is left out, each plugin goes to
-  the standard folder for its file type.
+- `dest` — for an archive, or a macOS disk image without a package, where its
+  plugins are put: `vst3`, `vst2`, `clap`, `au` or an absolute folder path.
+  When it is left out, each plugin goes to the standard folder for its file
+  type; *Installers on macOS* below lists the macOS folders.
 
 ### One package for both platforms
 
@@ -93,6 +94,64 @@ offered for installing.
   `match` array, with spaces in its `id`, or repeating an earlier entry's
   `id`, is skipped and reported in REAPER's console; the other entries stay
   usable.
+
+## Installers on macOS
+
+On a Mac, the manager installs a `macos` installer according to its `type`:
+
+- `zip` — the archive is unpacked and the plugins in it are copied to their
+  folders, as described below.
+- `dmg` — the disk image is opened read-only, accepting any licence agreement
+  it shows before opening. When it holds a package (`.pkg` or `.mpkg`) at its
+  top level or one folder down, that package is installed as a `pkg` entry
+  is; a package whose name contains `uninstall` is passed over. Otherwise the
+  plugins in the image are copied to their folders as from a `zip`. The image
+  is closed afterwards either way.
+- `pkg` — the package is installed with macOS's own installer, for the whole
+  machine.
+
+Any other type fails with "installer type not supported on macOS".
+
+### Where plugins are copied
+
+From a `zip`, or a `dmg` without a package, the manager copies every plugin
+bundle it finds into the member's `~/Library/Audio/Plug-Ins` folder, in the
+subfolder for the bundle's type:
+
+- `.vst3` — `VST3`
+- `.component` (AU) — `Components`
+- `.vst` (VST2) — `VST`
+- `.clap` — `CLAP`
+
+Only the outermost bundles are copied, never a bundle's own contents, and
+`__MACOSX` folders are ignored. A bundle of the same name already in the
+folder is replaced, and the quarantine flag is cleared from each copy so macOS
+lets REAPER load it. An archive or image holding no plugin bundle fails.
+
+An entry's `dest` sends every bundle to one folder instead: `vst3`, `vst2`,
+`au` and `clap` name the `VST3`, `VST`, `Components` and `CLAP` subfolders
+above, and an absolute path names any other folder. A package ignores `dest`:
+it decides itself where it installs.
+
+### One password for packages
+
+Packages need administrator rights. The manager installs every other plugin
+of the run first, then all the run's packages together, behind one macOS
+password prompt — asked once per run, however many packages it holds. When
+the member cancels the prompt, each package fails with "administrator
+password not entered"; the plugins installed before it stay installed.
+
+### Try packages and disk images on a Mac first
+
+Before publishing a `pkg` or `dmg` entry, try its installer by hand on a Mac:
+
+- A package is installed without its installer window, as
+  `sudo installer -pkg <file> -target /` in Terminal installs it, so a
+  package that works when opened by double-click can still fail there. Run
+  that command on it once.
+- Open a disk image and check that it holds a package at its top level or one
+  folder down, or the plugin bundles themselves. An image holding only an
+  installer application cannot be installed by the manager.
 
 ## Match strings
 

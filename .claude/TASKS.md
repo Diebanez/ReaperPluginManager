@@ -276,7 +276,7 @@ Feature: install-helper-macos
 
 ## 28. Update documentation for feature `install-helper-macos`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md
 Preconditions: 26, 27
