@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 36
+Last task number: 38
 
 ---
 
@@ -361,5 +361,25 @@ Target: claude
 Files: server/README.md
 Preconditions: 33, 34, 35
 Feature: catalogue-editor
+
+---
+
+## 37. Publish the catalogue draft
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 3, 35
+Feature: catalogue-publish
+
+---
+
+## 38. Update documentation for feature `catalogue-publish`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 37
+Feature: catalogue-publish
 
 ---

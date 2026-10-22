@@ -94,10 +94,10 @@ Tasks: 33, 34, 35, 36
 
 ## catalogue-publish — Publishing the catalogue draft
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/catalogue-publish.md
 Source: product-design.md § Catalogue management
-Tasks: none
+Tasks: 37, 38
 
 ---
 
