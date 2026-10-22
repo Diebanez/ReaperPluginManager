@@ -16,7 +16,7 @@ Feature: server-access
 
 ## 2. Server credential store and short-lived credentials file
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/helpers/rpm-secret.ps1, Scripts/ReaperPluginManager/helpers/rpm-secret.sh
 Preconditions: none
