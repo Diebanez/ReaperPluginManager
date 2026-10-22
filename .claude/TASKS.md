@@ -266,7 +266,7 @@ Feature: install-helper-macos
 
 ## 27. macOS helper dmg and single-password pkg phase
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
 Preconditions: 26

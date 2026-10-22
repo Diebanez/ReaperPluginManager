@@ -11,7 +11,10 @@
 #
 # --plugins-root defaults to ~/Library/Audio/Plug-Ins. Status lines:
 # START <n>, ITEM <id> download|verify|install, OK <id>, FAIL <id> <message>,
-# DONE <ok> <failed>. The credentials file is deleted when the run ends.
+# DONE <ok> <failed>. Packages (pkg entries, and a package found in a dmg)
+# are queued and installed after every other entry in one administrator-
+# privileged run, so the password is asked once; DONE follows that phase.
+# The credentials file is deleted when the run ends.
 # Where ditto and xattr are missing (development runs under Git Bash), unzip
 # and cp -R stand in and the quarantine flag is left alone.
 
@@ -160,11 +163,28 @@ route_item() {
   return 0
 }
 
-# Unpacks the zip $1 into the work folder $2 and routes every outermost
-# plugin item, without descending into one and ignoring __MACOSX. Sets msg
-# on failure.
+# Routes every outermost plugin item under the folder $1 with the dest $2,
+# without descending into one and ignoring __MACOSX; $3 names the source in
+# the message when there is none. Sets msg on failure.
+route_items() {
+  local root=$1 dest=$2 what=$3 item found=0
+  while IFS= read -r item; do
+    found=$((found + 1))
+    route_item "$item" "$dest" || return 1
+  done < <(find "$root" -mindepth 1 \( -name __MACOSX -prune \) -o \
+    \( \( -iname '*.vst3' -o -iname '*.component' -o -iname '*.vst' -o -iname '*.clap' \) \
+    -print -prune \) 2>/dev/null)
+  if [ $found -eq 0 ]; then
+    msg="no plugin (.vst3, .component, .vst, .clap) in the $what"
+    return 1
+  fi
+  return 0
+}
+
+# Unpacks the zip $1 into the work folder $2 and routes its plugin items with
+# the dest $3. Sets msg on failure.
 install_zip() {
-  local archive=$1 out=$2/unpacked dest=$3 err rc item found=0
+  local archive=$1 out=$2/unpacked dest=$3 err rc
   rm -rf -- "$out"
   if ! mkdir -p -- "$out" 2>/dev/null; then
     msg="cannot create the folder $out"
@@ -180,21 +200,70 @@ install_zip() {
     msg="cannot unpack the archive: $(one_line "$err")"
     return 1
   fi
-  while IFS= read -r item; do
-    found=$((found + 1))
-    route_item "$item" "$dest" || return 1
-  done < <(find "$out" -mindepth 1 \( -name __MACOSX -prune \) -o \
-    \( \( -iname '*.vst3' -o -iname '*.component' -o -iname '*.vst' -o -iname '*.clap' \) \
-    -print -prune \))
-  if [ $found -eq 0 ]; then
-    msg="no plugin (.vst3, .component, .vst, .clap) in the archive"
+  route_items "$out" "$dest" "archive"
+}
+
+# The first package (.pkg, .mpkg) within two levels of the folder $1, the
+# shallower first and in name order; uninstallers are skipped.
+find_package() {
+  local depth item
+  for depth in 1 2; do
+    while IFS= read -r item; do
+      case "$(lower "${item##*/}")" in
+        *uninstall*) continue ;;
+      esac
+      printf '%s' "$item"
+      return 0
+    done < <(find "$1" -mindepth $depth -maxdepth $depth \
+      \( -iname '*.pkg' -o -iname '*.mpkg' \) -print 2>/dev/null | sort)
+  done
+  return 1
+}
+
+# Mounts the disk image $1 in the work folder $2. A package within two levels
+# of the volume is copied into the work folder and named in pkg, returning 2
+# so it is queued; otherwise the volume's plugin items are routed with the
+# dest $3. The image is detached either way. Sets msg on failure.
+install_dmg() {
+  local image=$1 dir=$2 dest=$3 mnt=$2/volume err rc found
+  if ! mkdir -p -- "$mnt" 2>/dev/null; then
+    msg="cannot create the folder $mnt"
     return 1
   fi
-  return 0
+  # yes accepts the licence agreement some images show before mounting.
+  err=$(yes | hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$mnt" "$image" 2>&1)
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    err=$(printf '%s\n' "$err" | sed '/^[[:space:]]*$/d' | tail -n 1)
+    msg="cannot mount the disk image: $(one_line "${err:-hdiutil exit code $rc}")"
+    return 1
+  fi
+  found=$(find_package "$mnt")
+  if [ -n "$found" ]; then
+    pkg=$dir/${found##*/}
+    rm -rf -- "$pkg"
+    if have ditto; then
+      err=$(ditto "$found" "$pkg" 2>&1)
+    else
+      err=$(cp -R "$found" "$pkg" 2>&1)
+    fi
+    if [ $? -ne 0 ]; then
+      msg="cannot copy the package ${found##*/}: $(one_line "$err")"
+      rc=1
+    else
+      rc=2
+    fi
+  else
+    route_items "$mnt" "$dest" "disk image"
+    rc=$?
+  fi
+  hdiutil detach "$mnt" >/dev/null 2>&1 || hdiutil detach -force "$mnt" >/dev/null 2>&1
+  return $rc
 }
 
 # Downloads, verifies and installs job entry $1, writing its ITEM lines.
-# Sets msg on failure.
+# Returns 0 when installed, 2 when its package is queued (named in pkg) and
+# 1 on failure, setting msg.
 install_one() {
   local id=${ids[$1]} type=${types[$1]} url=${urls[$1]} dest=${dests[$1]}
   local sha dir file err rc actual
@@ -242,6 +311,11 @@ install_one() {
   say "ITEM $id install"
   case "$(lower "$type")" in
     zip) install_zip "$file" "$dir" "$dest" ;;
+    dmg) install_dmg "$file" "$dir" "$dest" ;;
+    pkg)
+      pkg=$file
+      return 2
+      ;;
     *)
       msg="installer type not supported on macOS"
       return 1
@@ -249,22 +323,112 @@ install_one() {
   esac
 }
 
+# Installs the queued packages in one run of a generated script under
+# administrator privileges, one password prompt for all of them. The script
+# writes each package's OK or FAIL line; a package left without one fails
+# with the reason the run did not reach it.
+install_packages() {
+  local script=$workdir/rpm-packages.sh before err rc reason j id got line
+  {
+    printf '#!/bin/bash\n'
+    printf 'status=%q\n' "$status"
+    cat <<'EOF'
+run_pkg() {
+  local err rc short
+  err=$(/usr/sbin/installer -pkg "$2" -target / 2>&1)
+  rc=$?
+  if [ $rc -eq 0 ]; then
+    printf 'OK %s\n' "$1" >> "$status"
+    return
+  fi
+  short=$(printf '%s\n' "$err" | grep -i 'error')
+  [ -n "$short" ] || short=$err
+  short=$(printf '%s' "$short" | sed 's/^installer: //' | tr '\r\n\t' '   ' | sed 's/^ *//; s/ *$//')
+  printf 'FAIL %s package installation failed: %s\n' "$1" "${short:-installer exit code $rc}" >> "$status"
+}
+EOF
+    j=0
+    while [ $j -lt ${#q_ids[@]} ]; do
+      printf 'run_pkg %q %q\n' "${q_ids[j]}" "${q_pkgs[j]}"
+      j=$((j + 1))
+    done
+  } > "$script" 2>/dev/null
+
+  before=$(wc -l < "$status" | tr -d ' ')
+  if [ -s "$script" ]; then
+    err=$(osascript -e 'on run argv' \
+      -e 'do shell script "/bin/bash " & quoted form of (item 1 of argv) with administrator privileges' \
+      -e 'end run' "$script" 2>&1)
+    rc=$?
+  else
+    err="cannot write the package script $script"
+    rc=1
+  fi
+  rm -f -- "$script"
+  # A cancelled password prompt is AppleScript error -128.
+  if [ $rc -eq 0 ]; then
+    reason="the package installer reported no outcome"
+  else
+    case "$err" in
+      *-128*) reason="administrator password not entered" ;;
+      *) reason="package installation did not run: $(one_line "${err:-osascript exit code $rc}")" ;;
+    esac
+  fi
+
+  j=0
+  while [ $j -lt ${#q_ids[@]} ]; do
+    id=${q_ids[j]}
+    got=
+    while IFS= read -r line; do
+      case "${line%$'\r'}" in
+        "OK $id") got=ok ;;
+        "FAIL $id "*) got=fail ;;
+      esac
+    done < <(tail -n +$((before + 1)) "$status")
+    case "$got" in
+      ok)
+        ok=$((ok + 1))
+        rm -rf -- "$workdir/$id"
+        ;;
+      fail) failed=$((failed + 1)) ;;
+      *)
+        say "FAIL $id $reason"
+        failed=$((failed + 1))
+        ;;
+    esac
+    j=$((j + 1))
+  done
+}
+
 say "START $n"
 ok=0
 failed=0
+q_ids=()
+q_pkgs=()
 i=0
 while [ $i -lt $n ]; do
   msg=
-  if install_one $i; then
-    say "OK ${ids[i]}"
-    ok=$((ok + 1))
-    rm -rf -- "$workdir/${ids[i]}"
-  else
-    say "FAIL ${ids[i]} $(one_line "$msg")"
-    failed=$((failed + 1))
-  fi
+  pkg=
+  install_one $i
+  case $? in
+    0)
+      say "OK ${ids[i]}"
+      ok=$((ok + 1))
+      rm -rf -- "$workdir/${ids[i]}"
+      ;;
+    2)
+      q_ids+=("${ids[i]}")
+      q_pkgs+=("$pkg")
+      ;;
+    *)
+      say "FAIL ${ids[i]} $(one_line "$msg")"
+      failed=$((failed + 1))
+      ;;
+  esac
   i=$((i + 1))
 done
+
+[ ${#q_ids[@]} -gt 0 ] && install_packages
 
 say "DONE $ok $failed"
 cleanup
