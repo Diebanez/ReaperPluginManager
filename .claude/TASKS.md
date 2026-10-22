@@ -396,7 +396,7 @@ Feature: catalogue-assistant
 
 ## 40. Update documentation for feature `catalogue-assistant`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: CLAUDE.md
 Preconditions: 39
