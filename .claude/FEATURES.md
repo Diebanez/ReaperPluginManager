@@ -31,10 +31,10 @@ Tasks: 5, 6, 7, 8
 
 ## plugin-detection — Plugin matching and classification
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/plugin-detection.md
 Source: product-design.md § Project check
-Tasks: none
+Tasks: 9, 10, 11, 12
 
 ---
 

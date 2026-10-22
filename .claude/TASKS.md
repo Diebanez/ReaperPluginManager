@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 8
+Last task number: 12
 
 ---
 
@@ -81,5 +81,45 @@ Target: claude
 Files: server/README.md, README.md
 Preconditions: 5, 6, 7
 Feature: plugin-catalogue
+
+---
+
+## 9. Project file scanner
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: none
+Feature: plugin-detection
+
+---
+
+## 10. Name normalization, installed check and installed grouping
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: none
+Feature: plugin-detection
+
+---
+
+## 11. Catalogue association and classification
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: 6, 10
+Feature: plugin-detection
+
+---
+
+## 12. Update documentation for feature `plugin-detection`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md, README.md
+Preconditions: 9, 10, 11
+Feature: plugin-detection
 
 ---
