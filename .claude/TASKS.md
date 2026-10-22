@@ -126,7 +126,7 @@ Feature: plugin-detection
 
 ## 13. Setup dialog, validation and saving
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_Setup.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 1, 2

@@ -20,6 +20,32 @@ function M.config_path()
   return M.data_dir() .. "config.ini"
 end
 
+-- "windows", "macos" or "other"; the tool does nothing on "other".
+local function platform()
+  local os_name = reaper.GetOS()
+  if os_name:match("^Win") then
+    return "windows"
+  elseif os_name:match("^OSX") or os_name:match("^macOS") then
+    return "macos"
+  end
+  return "other"
+end
+
+M.platform = platform
+
+-- Returns nil when the tool can run here, or the message that says why not:
+-- REAPER older than 7 (no EnumInstalledFX) or a platform other than Windows
+-- and macOS.
+function M.guard()
+  if not reaper.EnumInstalledFX then
+    return "REAPER 7 or later is required."
+  end
+  if platform() == "other" then
+    return "ReaperPluginManager works only on Windows and macOS: it does nothing on this system."
+  end
+  return nil
+end
+
 M.settings = {}
 
 -- Returns a complete settings value from config.ini; never raises.
@@ -29,6 +55,31 @@ function M.settings.load()
     return core.settings.defaults()
   end
   return core.settings.load(path)
+end
+
+-- Writes the keys present in `values` (a settings value, complete or
+-- partial) into config.ini, keeping every key, comment and line it does not
+-- name. Returns true, or false and the reason.
+function M.settings.save(values)
+  local path = M.config_path()
+  local text = ""
+  local f = io.open(path, "rb")
+  if f then
+    text = f:read("a") or ""
+    f:close()
+  end
+  reaper.RecursiveCreateDirectory(M.data_dir(), 0)
+  local out = core.settings.to_ini(text, values)
+  f = io.open(path, "wb")
+  if not f then
+    return false, "Cannot write the settings to " .. path
+  end
+  local ok = f:write(out)
+  f:close()
+  if not ok then
+    return false, "Cannot write the settings to " .. path
+  end
+  return true
 end
 
 ---------------------------------------------------------------------------
@@ -42,20 +93,10 @@ local EXT_SECTION = "ReaperPluginManager"
 local SERVICE_PREFIX = "ReaperPluginManager:"
 local HELPER_TIMEOUT_MS = 30000
 
-local function platform()
-  local os_name = reaper.GetOS()
-  if os_name:match("^Win") then
-    return "windows"
-  elseif os_name:match("^OSX") or os_name:match("^macOS") then
-    return "macos"
-  end
-  return "other"
-end
-
 local STORE_NAMES = {
   windows = "Windows DPAPI",
-  macos = "Portachiavi di macOS",
-  other = "archivio segreto",
+  macos = "macOS Keychain",
+  other = "secret store",
 }
 
 local function store_error(detail)
@@ -144,20 +185,20 @@ local function run_helper(action, host, user, infile)
       cmd = cmd .. " " .. sh_quote(infile)
     end
   else
-    return nil, "piattaforma non supportata"
+    return nil, "unsupported platform"
   end
 
   local output
   if p == "windows" then
     local ret = reaper.ExecProcess(cmd, HELPER_TIMEOUT_MS)
     if not ret then
-      return nil, "impossibile avviare PowerShell"
+      return nil, "cannot start PowerShell"
     end
     output = ret:match("^[^\n]*\n(.*)$") or ""
   else
     local f = io.popen(cmd .. " 2>/dev/null", "r")
     if not f then
-      return nil, "impossibile avviare il comando security"
+      return nil, "cannot start the security command"
     end
     output = f:read("a") or ""
     f:close()
@@ -167,7 +208,7 @@ local function run_helper(action, host, user, infile)
       return line
     end
   end
-  return nil, "nessuna risposta dallo script di supporto"
+  return nil, "no answer from the helper script"
 end
 
 local cache = {}
@@ -177,53 +218,59 @@ local cache = {}
 -- empty password passes (setup-action reads it as "keep the stored one").
 function M.credentials.validate_password(password)
   if type(password) ~= "string" then
-    return false, "La password non è valida."
+    return false, "The password is not valid."
   end
   if password:find("%s") then
-    return false, "La password non può contenere spazi, tabulazioni o a capo."
+    return false, "The password cannot contain spaces, tabs or line breaks."
   end
   return true
 end
 
+-- Returns the stored password of `user` on `host`, read from the store once
+-- and then kept in memory for the rest of the session; or nil, an error
+-- naming the store and, when nothing is stored, true.
+local function read_password(host, user)
+  local key = key_of(host, user)
+  if cache[key] then
+    return cache[key]
+  end
+  local line, err = run_helper("get", host, user)
+  if not line then
+    return nil, store_error(err)
+  elseif line == "NOTFOUND" then
+    return nil, store_error("no password stored for user " .. user .. "; run Setup."), true
+  elseif line:match("^ERROR") then
+    return nil, store_error(line:match("^ERROR (.*)$") or line)
+  end
+  local password = from_hex(line:match("^OK%s*(%x*)$") or "")
+  if password == "" then
+    return nil, store_error("the stored password is empty; run Setup.")
+  end
+  cache[key] = password
+  return password
+end
+
 -- Returns user, password for the configured server; password is nil for an
 -- empty user (anonymous access). On a secret-store failure returns user, nil
--- and an error naming the store. The password is read from the store once
--- and then kept in memory for the rest of the session.
+-- and an error naming the store.
 function M.credentials.get()
   local settings = M.settings.load()
   local user = settings.server.user
   if user == "" then
     return user, nil
   end
-  local host = url_host(settings.server.url) or ""
-  local key = key_of(host, user)
-  if cache[key] then
-    return user, cache[key]
-  end
-  local line, err = run_helper("get", host, user)
-  if not line then
-    return user, nil, store_error(err)
-  elseif line == "NOTFOUND" then
-    return user, nil, store_error("nessuna password salvata per l'utente " .. user .. "; esegui il Setup.")
-  elseif line:match("^ERROR") then
-    return user, nil, store_error(line:match("^ERROR (.*)$") or line)
-  end
-  local password = from_hex(line:match("^OK%s*(%x*)$") or "")
-  if password == "" then
-    return user, nil, store_error("la password salvata è vuota; esegui il Setup.")
-  end
-  cache[key] = password
-  return user, password
+  local password, err = read_password(url_host(settings.server.url) or "", user)
+  return user, password, err
 end
 
 -- Stores `password` for `user` on the server at `url`, replacing any stored
 -- one. Returns true, or false and an error naming the store.
 function M.credentials.store(url, user, password)
   if type(user) ~= "string" or user == "" then
-    return false, store_error("nessun utente indicato.")
+    return false, store_error("no user given.")
   end
   if type(password) ~= "string" or password == "" then
-    return false, store_error("la password è vuota.")
+    return false, store_error("the password is empty.")
   end
   local valid, invalid = M.credentials.validate_password(password)
   if not valid then
@@ -232,7 +279,7 @@ function M.credentials.store(url, user, password)
   local host = url_host(url) or ""
   local infile = temp_path("secret")
   if not write_private(infile, password) then
-    return false, store_error("impossibile scrivere il file temporaneo.")
+    return false, store_error("cannot write the temporary file.")
   end
   local line, err = run_helper("set", host, user, infile)
   os.remove(infile)
@@ -263,6 +310,36 @@ function M.credentials.remove(url, user)
   return true
 end
 
+-- Applies the setup dialog's credential rules when the server account goes
+-- from `old_user` on `old_url` to `user` on `url`: an empty user removes the
+-- previous user's stored password; a password replaces the stored one; an
+-- empty password with the same user keeps the stored one, carried over to
+-- the new host when the server host changed. Returns true, or false and an
+-- error naming the store.
+function M.credentials.update(old_url, old_user, url, user, password)
+  if user == "" then
+    return M.credentials.remove(old_url, old_user)
+  end
+  if password ~= "" then
+    return M.credentials.store(url, user, password)
+  end
+  if user ~= old_user then
+    return true
+  end
+  local old_host, host = url_host(old_url) or "", url_host(url) or ""
+  if old_host == host then
+    return true
+  end
+  local stored, err, missing = read_password(old_host, user)
+  if not stored then
+    if missing then
+      return true
+    end
+    return false, err
+  end
+  return M.credentials.store(url, user, stored)
+end
+
 -- Writes the netrc credentials file for the configured server and returns
 -- its path; the caller removes it with release_file once the transfer ends.
 -- Returns nil with no error when no file is needed (anonymous access or a
@@ -283,7 +360,7 @@ function M.credentials.acquire_file()
   local path = temp_path("netrc")
   local text = "machine " .. host .. "\nlogin " .. user .. "\npassword " .. password .. "\n"
   if not write_private(path, text) then
-    return nil, "Impossibile scrivere il file delle credenziali in " .. M.data_dir()
+    return nil, "Cannot write the credentials file to " .. M.data_dir()
   end
   return path
 end
