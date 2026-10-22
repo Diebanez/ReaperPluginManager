@@ -2447,6 +2447,12 @@ local function watch_check(event)
   end
 end
 
+-- True while a watcher's heartbeat is younger than 3 s.
+function M.watcher.is_running()
+  local beat = tonumber(reaper.GetExtState(EXT_SECTION, HEARTBEAT_KEY))
+  return beat ~= nil and reaper.time_precise() - beat < HEARTBEAT_FRESH
+end
+
 -- Starts the watcher: calls `install.reopen_after_restart` once, then, while
 -- automatic checking is on, runs a `defer` loop that writes the heartbeat
 -- each cycle and every second lists the open project tabs. A (project, path)
@@ -2457,11 +2463,7 @@ end
 -- heartbeat is younger than 3 s; when automatic checking is off it returns
 -- false too, the reopen still pending. Returns true once the loop runs.
 function M.watcher.start()
-  if M.guard() then
-    return false
-  end
-  local beat = tonumber(reaper.GetExtState(EXT_SECTION, HEARTBEAT_KEY))
-  if beat and reaper.time_precise() - beat < HEARTBEAT_FRESH then
+  if M.guard() or M.watcher.is_running() then
     return false
   end
   M.install.reopen_after_restart()
@@ -2545,6 +2547,118 @@ function M.watcher.start()
   heartbeat()
   loop()
   return true
+end
+
+---------------------------------------------------------------------------
+-- Setup: registering the actions, the startup hook in REAPER's
+-- Scripts/__startup.lua and the connection test.
+---------------------------------------------------------------------------
+
+M.setup = {}
+
+-- The tool's actions in registration order.
+local ACTIONS = {
+  { name = "Watcher", file = "RPM_Watcher.lua" },
+  { name = "Check project", file = "RPM_CheckProject.lua" },
+  { name = "Catalogue management", file = "RPM_CatalogueManager.lua" },
+  { name = "Setup", file = "RPM_Setup.lua" },
+}
+local WATCHER_FILE = "RPM_Watcher.lua"
+
+local STARTUP_BEGIN = "-- >>> ReaperPluginManager"
+local STARTUP_END = "-- <<< ReaperPluginManager"
+
+-- Registers the tool's actions in the main section; an already registered
+-- script keeps its command id. Returns the watcher's command id (nil when it
+-- is not registered) and the list of failures, one line each.
+function M.setup.register_actions()
+  local failures = {}
+  if not script_dir then
+    failures[1] = "Cannot register the actions: the scripts folder is unknown."
+    return nil, failures
+  end
+  local present = {}
+  for _, action in ipairs(ACTIONS) do
+    local path = script_dir .. action.file
+    if file_exists(path) then
+      present[#present + 1] = { action = action, path = path }
+    else
+      failures[#failures + 1] = ("Cannot register the %s action: %s is missing."):format(action.name, path)
+    end
+  end
+  local watcher_id
+  for i, item in ipairs(present) do
+    local id = reaper.AddRemoveReaScript(true, 0, item.path, i == #present)
+    if not id or id == 0 then
+      failures[#failures + 1] = ("Cannot register the %s action (%s)."):format(item.action.name, item.path)
+    elseif item.action.file == WATCHER_FILE then
+      watcher_id = id
+    end
+  end
+  return watcher_id, failures
+end
+
+-- The startup hook block that runs the watcher script at `watcher_path`.
+local function startup_block(watcher_path)
+  return table.concat({
+    STARTUP_BEGIN,
+    "do",
+    ("  local ok, err = pcall(dofile, %q)"):format(watcher_path),
+    "  if not ok then",
+    '    reaper.ShowConsoleMsg("ReaperPluginManager: the watcher did not start: " .. tostring(err) .. "\\n")',
+    "  end",
+    "end",
+    STARTUP_END,
+  }, "\n")
+end
+
+-- `text` with its marked block replaced in place by `block`, or with `block`
+-- appended when it holds none.
+local function with_startup_block(text, block)
+  local s = text:find(STARTUP_BEGIN, 1, true)
+  local e = s and select(2, text:find(STARTUP_END, s, true))
+  if e then
+    return text:sub(1, s - 1) .. block .. text:sub(e + 1)
+  end
+  if text ~= "" and text:sub(-1) ~= "\n" then
+    text = text .. "\n"
+  end
+  return text .. block .. "\n"
+end
+
+-- Writes the startup hook into REAPER's Scripts/__startup.lua, creating the
+-- folder and the file when missing and leaving the rest of the file as it
+-- is. Returns true, or false and the reason.
+function M.setup.install_startup_hook()
+  local dir = reaper.GetResourcePath() .. SEP .. "Scripts"
+  local path = dir .. SEP .. "__startup.lua"
+  if not script_dir then
+    return false, "the scripts folder is unknown."
+  end
+  reaper.RecursiveCreateDirectory(dir, 0)
+  local text = ""
+  if file_exists(path) then
+    text = read_file(path)
+    if not text then
+      return false, "cannot read " .. path
+    end
+  end
+  local ok, err = write_replace(path, with_startup_block(text, startup_block(script_dir .. WATCHER_FILE)), "startup")
+  if not ok then
+    return false, one_line(err)
+  end
+  return true
+end
+
+-- Fetches the catalogue from the configured server. Returns the number of
+-- plugins it lists, or nil and the reason the server catalogue cannot be
+-- used.
+function M.setup.test_connection()
+  local catalogue, source, reason = M.catalogue.fetch()
+  if source == "server" then
+    return #catalogue.plugins
+  end
+  return nil, one_line(reason or "the catalogue cannot be fetched.")
 end
 
 return M

@@ -1,6 +1,7 @@
 -- RPM_Setup.lua: the "ReaperPluginManager: Setup" action. Collects the server
--- connection in one dialog, validates it and saves the settings and the
--- server credential.
+-- connection in one dialog, validates it, saves the settings and the server
+-- credential, registers the tool's actions, installs the startup hook, starts
+-- the watcher and tests the connection.
 
 local script_dir = debug.getinfo(1, "S").source:match("^@(.*[\\/])")
 if script_dir and not package.path:find(script_dir, 1, true) then
@@ -127,24 +128,67 @@ local function main()
     end
   end
 
-  local errors = {}
-  local ok, err = rpm.settings.save({
+  -- Each step runs whether or not the earlier ones succeeded, where it can;
+  -- the closing report lists every outcome.
+  local report = {}
+  local function add(line)
+    report[#report + 1] = line
+  end
+
+  local saved, err = rpm.settings.save({
     server = { url = values.url, user = values.user, tls = values.tls },
     check = { auto = values.auto },
   })
-  if not ok then
-    errors[#errors + 1] = err
+  if saved then
+    add("Settings saved.")
+  else
+    add("Settings not saved: " .. err)
   end
+  local ok
   ok, err = rpm.credentials.update(current.server.url, current.server.user, values.url, values.user, values.password)
   if not ok then
-    errors[#errors + 1] = err
+    add("Password not saved: " .. err)
   end
 
-  if #errors == 0 then
-    message("Settings saved.")
+  local watcher_id, failures = rpm.setup.register_actions()
+  if #failures == 0 then
+    add("Actions registered: Watcher, Check project, Catalogue management, Setup.")
   else
-    message("Saving failed:\n- " .. table.concat(errors, "\n- "))
+    for _, failure in ipairs(failures) do
+      add(failure)
+    end
   end
+
+  ok, err = rpm.setup.install_startup_hook()
+  if ok then
+    add("Startup hook installed: projects are checked from every REAPER start.")
+  else
+    add("Startup hook not written: " .. err)
+  end
+
+  if not watcher_id then
+    add("Watcher not started: its action is not registered.")
+  elseif not rpm.settings.load().check.auto then
+    add("Watcher not started: automatic checking is off.")
+  elseif rpm.watcher.is_running() then
+    add("Watcher already running.")
+  else
+    reaper.Main_OnCommand(watcher_id, 0)
+    add("Watcher started.")
+  end
+
+  if saved then
+    local count, reason = rpm.setup.test_connection()
+    if count then
+      add(("Connection succeeded: the catalogue lists %d plugins."):format(count))
+    else
+      add("Connection failed: " .. reason)
+    end
+  else
+    add("Connection not tested: the settings were not saved.")
+  end
+
+  message(table.concat(report, "\n"))
 end
 
 main()

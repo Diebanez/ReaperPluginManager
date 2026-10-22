@@ -136,7 +136,7 @@ Feature: setup-action
 
 ## 14. Action registration, startup hook and connection test
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_Setup.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 7, 13, 18
