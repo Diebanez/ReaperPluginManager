@@ -31,9 +31,10 @@ A Windows PowerShell 5.1 script, per
 [technical-direction.md](../technical-direction.md).
 
 - **Parameters** — `-JobFile -StatusFile -WorkDir -NetrcFile -Tls -Insecure
-  -Vst3Dir` (default `%CommonProgramFiles%\VST3`) `-Vst2Dir` (default from
-  the settings' `vst2_dir`) `-ClapDir` (default `%CommonProgramFiles%\CLAP`)
-  `-NoElevate` (development use).
+  -Vst3Dir` (default `%CommonProgramFiles%\VST3`) `-Vst2Dir` (optional,
+  default from the settings' `vst2_dir`; empty means VST2 is skipped)
+  `-ClapDir` (default `%CommonProgramFiles%\CLAP`) `-NoElevate` (development
+  use).
 - **Elevation** — writes `START` at once; when not running as administrator
   and without `-NoElevate`, relaunches itself with `Start-Process -Verb
   RunAs`, forwarding every parameter, and exits. A refused prompt → `FAIL
@@ -48,10 +49,18 @@ A Windows PowerShell 5.1 script, per
   - `msi` — `msiexec /i "<file>" /qn /norestart <args>`; same codes.
   - `zip` — unpack with .NET `ZipFile.ExtractToDirectory`, then route per the
     contract: `.vst3` (file or folder) → Vst3Dir, `.clap` → ClapDir, `.dll`
-    → Vst2Dir, unless `dest` says otherwise. When the same name appears more
-    than once, drop the copy whose relative path marks it 32-bit (`x86`,
-    `32bit`, `32-bit`, `win32`, `32`) as long as one copy is not so marked.
-    No plugin found → "no plugin (.vst3, .clap, .dll) in the archive".
+    → Vst2Dir, unless `dest` says otherwise. `.lv2` folders are skipped,
+    contents included: their inner `.dll` files are not VST2 plugins. When
+    the same name appears more than once, drop the copy whose relative path
+    marks it 32-bit (`x86`, `32bit`, `32-bit`, `win32`, `32`) as long as one
+    copy is not so marked. No plugin found → "no plugin (.vst3, .clap, .dll)
+    in the archive". VST2 is optional: a VST2 item (a `.dll`, or any item
+    when the entry's `dest` is `vst2`) is copied to Vst2Dir only when
+    `vst2_dir` is set; otherwise it is skipped, and the helper writes
+    `NOTE <id> <message>` naming the skipped files before the entry's `OK`.
+    An archive holding only VST2 items with no VST2 folder set fails with
+    "only VST2 plugins in the archive and no VST2 folder set (vst2_dir in the
+    settings)".
 
 ## Data and state
 
