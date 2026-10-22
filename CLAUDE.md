@@ -10,21 +10,22 @@ are designed, and why the architecture is what it is — read
 
 ## Project
 
-ReaperPluginManager (RPM) is a plugin manager for REAPER. Plugin installers
-live on a private FTP server; when the user opens a project that uses plugins
-that are not installed, the manager lists them and, on confirmation,
-downloads and installs them. `SPEC.md` (in Italian) is the full
-specification and the source of truth for data formats, flows, test plan and
-acceptance criteria.
+ReaperPluginManager (RPM) is an open-source plugin manager for REAPER. A
+maintainer keeps a catalogue of plugin installers on the group's own private
+server; when a member opens a project that uses plugins they do not have, the
+manager lists them, installs what the catalogue offers on confirmation, and
+guides licence activation with the member's own account. The domain layer
+(`.claude/domain/`) is the source of truth for the design: `product-design.md`
+and `technical-direction.md`, and one document per feature under `features/`.
 
 - **Form:** Lua ReaScripts for REAPER 7 or later (`reaper.EnumInstalledFX`
-  is required); no compiled extension and no dependency beyond `curl`.
+  is required) plus `curl`; ReaImGui is needed only for the maintainer's
+  catalogue editor.
 - **Platforms:** Windows 10/11 and macOS. On Linux the manager does nothing.
-- **Server:** FTP with explicit TLS; `ftps://`, `https://` and `file://`
-  URLs must work too.
-- **Language:** user-facing text in Italian; code and comments in English.
-- **Out of scope:** licence activation, rescanning plugins without a restart,
-  JSFX, uploading to the server, replacing plugin instances in projects.
+- **Server:** FTP with explicit TLS, FTPS, HTTPS or a `file://` folder.
+- **Language:** English everywhere — user-facing text, code and comments.
+- **Out of scope:** rescanning plugins without a restart, JSFX, replacing
+  plugin instances in projects.
 
 ### Layout
 
@@ -32,14 +33,17 @@ All paths are relative to the repository root.
 
 - `Scripts/ReaperPluginManager/rpm_core.lua` — pure logic with no `reaper.*`
   calls (JSON, INI, `.rpp` parsing, matching, classification, job and status
-  files), so it runs under plain Lua 5.4 in tests.
-- `Scripts/ReaperPluginManager/rpm_reaper.lua` — the REAPER side: config,
-  manifest download, project check, helper launch, progress window.
-- `RPM_Watcher.lua`, `RPM_CheckProject.lua`, `RPM_ExportInstalled.lua`,
+  files), so it runs under plain Lua 5.4.
+- `Scripts/ReaperPluginManager/rpm_reaper.lua` — the REAPER side: settings,
+  credentials, transfers, catalogue fetch, project check, helper launch,
+  windows.
+- `RPM_Watcher.lua`, `RPM_CheckProject.lua`, `RPM_CatalogueManager.lua`,
   `RPM_Setup.lua` — the four REAPER actions, beside the two modules above.
 - `Scripts/ReaperPluginManager/helpers/` — `rpm-install.ps1` (Windows) and
-  `rpm-install.sh` (macOS) install helpers.
-- `server/manifest.example.json`, `tests/`, `README.md`.
+  `rpm-install.sh` (macOS) install helpers, and the `rpm-secret.*` OS
+  secret-store helpers.
+- `server/` — the example catalogue and the server setup guide;
+  `README.md` — the member-facing guide.
 
 Lua detects, classifies, asks for confirmation and tracks progress; a
 detached platform helper downloads and installs, so REAPER never blocks. The
@@ -49,13 +53,13 @@ two talk only through the job file (`job.tsv`, input) and the status file
 
 ### Conventions
 
-- Credentials go to curl only through a separate `netrc` file
-  (`--netrc-file`), never on the command line.
-- `rpm-install.ps1` targets Windows PowerShell 5.1 and is ASCII-only,
-  Italian messages included; `rpm-install.sh` targets bash 3.2.
-- `SPEC.md` §8 lists the known platform pitfalls (PowerShell 5.1 encoding
-  and module loading, bash field splitting, Lua `gsub` return values,
-  `reaper.ExecProcess` timeouts); read it before touching the helpers or the
+- The server password lives only in the OS secret store; curl receives it
+  through a short-lived `netrc` file (`--netrc-file`), never on a command
+  line.
+- `rpm-install.ps1` targets Windows PowerShell 5.1 and is ASCII-only;
+  `rpm-install.sh` targets bash 3.2. Their platform pitfalls are stated in
+  `.claude/domain/features/install-helper-windows.md` and
+  `install-helper-macos.md`; read them before touching the helpers or the
   process launch code.
 
 ## Tasks implementation
