@@ -206,7 +206,7 @@ Feature: plugin-installation
 
 ## 21. Install run: launch, progress window, summary and reopen
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 3, 20, 30

@@ -1469,6 +1469,429 @@ function M.activation.activate(entries, on_close)
 end
 
 ---------------------------------------------------------------------------
+-- Install run: the job for the platform helper, its detached launch, the
+-- progress window that follows the status file, the summary, the hand-off
+-- to licence activation, and the project reopened after REAPER restarts.
+---------------------------------------------------------------------------
+
+M.install = {}
+
+local HELPER_START_TIMEOUT = 30
+local REOPEN_KEY = "reopen"
+local REOPEN_DELAY = 2
+local INSTALL_TITLE = "ReaperPluginManager - Installing plugins"
+local INSTALL_W = 520
+local RESTART_MESSAGE = "Restart REAPER: it detects the new plugins at startup and this project reopens. "
+  .. "If a plugin does not appear: Preferences > Plug-ins > VST > Re-scan."
+
+local STATE_TEXT = {
+  queued = "queued",
+  download = "downloading…",
+  verify = "verifying…",
+  install = "installing…",
+  ok = "installed",
+  failed = "failed",
+}
+
+-- The run in progress, or nil: { items, status_path, netrc, project,
+-- launched, heard, finished, ok, failed, note, window, scroll, pressed,
+-- was_down }. Each item is { id, name, entry, installer, state, message }.
+local install = nil
+
+-- Starts the platform helper on `job`, `status` and `work` with the transfer
+-- options `opts`, without waiting. Returns true when it started.
+local function launch_helper(job, status, work, opts)
+  if platform() == "windows" then
+    local q = core.win_quote
+    local cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "
+      .. q(helpers_dir() .. "rpm-install.ps1")
+      .. " -JobFile " .. q(job) .. " -StatusFile " .. q(status) .. " -WorkDir " .. q(work)
+    if opts.netrc_path then
+      cmd = cmd .. " -NetrcFile " .. q(opts.netrc_path)
+    end
+    if opts.tls and opts.tls ~= "" then
+      cmd = cmd .. " -Tls " .. q(opts.tls)
+    end
+    if opts.insecure == true then
+      cmd = cmd .. " -Insecure"
+    end
+    return reaper.ExecProcess(cmd, -2) ~= nil
+  end
+  local cmd = "/bin/bash " .. sh_quote(helpers_dir() .. "rpm-install.sh")
+    .. " --job " .. sh_quote(job) .. " --status " .. sh_quote(status) .. " --workdir " .. sh_quote(work)
+  if opts.netrc_path then
+    cmd = cmd .. " --netrc " .. sh_quote(opts.netrc_path)
+  end
+  if opts.tls and opts.tls ~= "" then
+    cmd = cmd .. " --tls " .. sh_quote(opts.tls)
+  end
+  if opts.insecure == true then
+    cmd = cmd .. " --insecure"
+  end
+  return os.execute(cmd .. " >/dev/null 2>&1 &") == true
+end
+
+-- Ends the run's progress: every item without an outcome fails with
+-- `message`, and the counts are taken.
+local function finish_run(state, message)
+  state.finished = true
+  state.ok, state.failed = 0, 0
+  for _, item in ipairs(state.items) do
+    if item.state ~= "ok" and item.state ~= "failed" then
+      item.state, item.message = "failed", message
+    end
+    if item.state == "ok" then
+      state.ok = state.ok + 1
+    else
+      state.failed = state.failed + 1
+    end
+  end
+end
+
+-- Fails every item of a run whose helper never ran, with `reason`, and
+-- removes the credentials file the helper would have deleted.
+local function fail_run(state, reason)
+  M.credentials.release_file(state.netrc)
+  state.note = reason
+  finish_run(state, reason)
+end
+
+-- Reads the status file into the items; at DONE the run is finished.
+local function poll_status(state)
+  local st = core.install.parse_status(read_file(state.status_path))
+  if st.started or st.done or #st.order > 0 then
+    state.heard = true
+  end
+  for _, item in ipairs(state.items) do
+    local s = st.items[item.id]
+    if s then
+      item.state, item.message = s.state, s.message
+    end
+  end
+  if st.done then
+    finish_run(state, "the installer helper reported no result")
+  elseif not state.heard and reaper.time_precise() - state.launched > HELPER_START_TIMEOUT then
+    fail_run(state, "the installer helper did not start")
+  end
+end
+
+local function install_heading(state)
+  if not state.finished then
+    if not state.heard then
+      return "Starting the installer helper…"
+    end
+    return ("Installing %d plugin%s"):format(#state.items, #state.items == 1 and "" or "s")
+  end
+  return ("Install finished: %d installed, %d failed"):format(state.ok, state.failed)
+end
+
+-- The progress lines as { text, r, g, b, indent }: one per plugin, then its
+-- failure message, wrapped to `width`.
+local function install_rows(state, width)
+  local rows = {}
+  for _, item in ipairs(state.items) do
+    local r, g, b = 0.85, 0.85, 0.87
+    if item.state == "ok" then
+      r, g, b = 0.45, 0.8, 0.45
+    elseif item.state == "failed" then
+      r, g, b = 0.92, 0.4, 0.4
+    end
+    for _, line in ipairs(wrap(item.name .. " — " .. (STATE_TEXT[item.state] or item.state), width)) do
+      rows[#rows + 1] = { line, r, g, b, 0 }
+    end
+    if item.state == "failed" and item.message and item.message ~= "" then
+      for _, line in ipairs(wrap(item.message, width - 16)) do
+        rows[#rows + 1] = { line, 0.75, 0.5, 0.5, 16 }
+      end
+    end
+  end
+  return rows
+end
+
+local function close_button_rect()
+  return { label = "Close", x = gfx.w - PAD - BUTTON_W, y = gfx.h - PAD - BUTTON_H, w = BUTTON_W, h = BUTTON_H }
+end
+
+local function draw_install(state, button)
+  local width = gfx.w - 2 * PAD
+  gfx.set(0.15, 0.15, 0.16)
+  gfx.rect(0, 0, gfx.w, gfx.h, 1)
+
+  gfx.setfont(2, "Arial", 18, string.byte("b"))
+  gfx.set(0.92, 0.92, 0.94)
+  local top = draw_lines(wrap(install_heading(state), width), PAD) + 4
+  gfx.setfont(1, "Arial", 15)
+  if state.note then
+    gfx.set(0.92, 0.4, 0.4)
+    top = draw_lines(wrap(state.note, width), top) + 4
+  end
+  top = top + 4
+
+  local _, lh = gfx.measurestr("Ag")
+  lh = lh + 2
+  local bottom
+  if button then
+    bottom = button.y - 8
+  else
+    bottom = gfx.h - PAD - lh - 4
+    gfx.set(0.6, 0.6, 0.62)
+    draw_lines({ "Closing this window does not stop the install." }, gfx.h - PAD - lh)
+  end
+
+  local rows = install_rows(state, width)
+  local visible = math.max(1, math.floor((bottom - top) / lh))
+  local max_scroll = math.max(0, #rows - visible)
+  if gfx.mouse_wheel ~= 0 then
+    state.scroll = state.scroll - (gfx.mouse_wheel > 0 and 3 or -3)
+    gfx.mouse_wheel = 0
+  end
+  state.scroll = math.max(0, math.min(state.scroll, max_scroll))
+  for i = 1, visible do
+    local row = rows[state.scroll + i]
+    if not row then
+      break
+    end
+    gfx.set(row[2], row[3], row[4])
+    gfx.x, gfx.y = PAD + row[5], top + (i - 1) * lh
+    gfx.drawstr(row[1])
+  end
+
+  if button then
+    local hover = hit({ button }, gfx.mouse_x, gfx.mouse_y)
+    local shade = hover and 0.38 or 0.28
+    gfx.set(shade, shade, shade + 0.02)
+    gfx.rect(button.x, button.y, button.w, button.h, 1)
+    gfx.set(0.92, 0.92, 0.94)
+    local tw, th = gfx.measurestr(button.label)
+    gfx.x, gfx.y = button.x + (button.w - tw) / 2, button.y + (button.h - th) / 2
+    gfx.drawstr(button.label)
+  end
+  gfx.update()
+end
+
+local function open_install_window(state)
+  local h = math.max(220, math.min(520, 130 + 22 * #state.items))
+  gfx.quit()
+  gfx.init(INSTALL_TITLE, INSTALL_W, h)
+  state.window = true
+  state.pressed, state.was_down = nil, false
+end
+
+-- After the summary closes: the installed entries go to licence activation,
+-- and when its walk-through closes, a run that installed anything records
+-- the project to reopen and asks for the restart. The run ends there.
+local function hand_off(state)
+  local installed = {}
+  for _, item in ipairs(state.items) do
+    if item.state == "ok" then
+      installed[#installed + 1] = item.entry
+    end
+  end
+  local ended = false
+  local function after_activation()
+    if ended then
+      return
+    end
+    ended = true
+    if #installed > 0 then
+      if state.project ~= "" then
+        reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
+      end
+      reaper.ShowMessageBox(RESTART_MESSAGE, INSTALL_TITLE, 0)
+    end
+    if install == state then
+      install = nil
+    end
+  end
+  local ok, err = pcall(M.activation.after_install, installed, after_activation)
+  if not ok then
+    console("licence activation failed: " .. one_line(err))
+    after_activation()
+  end
+end
+
+-- One defer cycle of the run: read the status file, then draw the window, or
+-- reopen it for the summary once the run is finished. Closing the summary
+-- hands over to licence activation.
+local function install_cycle(state)
+  if not state.finished then
+    poll_status(state)
+  end
+  if not state.window then
+    if not state.finished then
+      return true
+    end
+    open_install_window(state)
+  end
+  local c = gfx.getchar()
+  if c < 0 or c == 27 then
+    gfx.quit()
+    state.window = false
+    if state.finished then
+      hand_off(state)
+      return false
+    end
+    return true
+  end
+  local button = state.finished and close_button_rect() or nil
+  if button then
+    local down = gfx.mouse_cap & 1 == 1
+    if down and not state.was_down then
+      state.pressed = hit({ button }, gfx.mouse_x, gfx.mouse_y)
+    elseif not down and state.was_down then
+      local label, pressed = hit({ button }, gfx.mouse_x, gfx.mouse_y), state.pressed
+      state.pressed = nil
+      if label and label == pressed then
+        gfx.quit()
+        state.window = false
+        hand_off(state)
+        return false
+      end
+    end
+    state.was_down = down
+  end
+  draw_install(state, button)
+  return true
+end
+
+local function install_loop(state)
+  local function loop()
+    if install ~= state then
+      return
+    end
+    local ok, again = pcall(install_cycle, state)
+    if not ok then
+      console("install window failed: " .. one_line(again))
+      if state.window then
+        gfx.quit()
+      end
+      install = nil
+      return
+    end
+    if again then
+      reaper.defer(loop)
+    end
+  end
+  loop()
+end
+
+-- Starts an install run for `entries`, the installable items of a check
+-- (each { entry, installer }), and opens the progress window. Writes the job,
+-- deletes the old status file, prepares the transfer options and launches
+-- the platform helper without waiting. Returns true once the window is open
+-- (a helper that cannot be launched is reported there and in the summary),
+-- or false and the reason nothing started: a run already in progress,
+-- nothing to install, no server, or the job or credentials file.
+function M.install.start(entries)
+  if install then
+    return false, "An install is already running."
+  end
+  local items, by_id = {}, {}
+  for _, g in ipairs(entries or {}) do
+    if type(g) == "table" and type(g.entry) == "table" and type(g.installer) == "table" then
+      local id = tostring(g.entry.id)
+      if not by_id[id] then
+        local name = type(g.entry.name) == "string" and g.entry.name or id
+        local item = { id = id, name = name, entry = g.entry, installer = g.installer, state = "queued" }
+        items[#items + 1] = item
+        by_id[id] = item
+      end
+    end
+  end
+  if #items == 0 then
+    return false, "There is nothing to install."
+  end
+  local p = platform()
+  if p ~= "windows" and p ~= "macos" then
+    return false, "Installing works only on Windows and macOS."
+  end
+  local base_url = M.settings.load().server.url
+  if base_url == "" then
+    return false, "No server is configured; run Setup."
+  end
+
+  local dir = M.data_dir()
+  reaper.RecursiveCreateDirectory(dir, 0)
+  local job, status, work = dir .. "job.tsv", dir .. "status.txt", dir .. "work"
+  local f = io.open(job, "wb")
+  local written = f and f:write(core.install.job_text(items, base_url))
+  if f then
+    f:close()
+  end
+  if not written then
+    return false, "Cannot write the job file to " .. job
+  end
+  os.remove(status)
+  if file_exists(status) then
+    return false, "Cannot delete the old status file " .. status
+  end
+  reaper.RecursiveCreateDirectory(work, 0)
+  local opts, err = M.transfer.helper_options()
+  if not opts then
+    return false, err
+  end
+
+  local state = {
+    items = items,
+    status_path = status,
+    netrc = opts.netrc_path,
+    project = M.check.project_path(),
+    launched = reaper.time_precise(),
+    heard = false,
+    finished = false,
+    scroll = 0,
+  }
+  install = state
+  if not launch_helper(job, status, work, opts) then
+    fail_run(state, "the installer helper could not be launched")
+  end
+  open_install_window(state)
+  install_loop(state)
+  return true
+end
+
+-- True from start until the run's summary, licence activation and restart
+-- message are done.
+function M.install.is_running()
+  return install ~= nil
+end
+
+local reopen_waiting = false
+
+local function same_path(a, b)
+  if platform() == "windows" then
+    return a:gsub("/", "\\"):lower() == b:gsub("/", "\\"):lower()
+  end
+  return a == b
+end
+
+-- Called once by the watcher at start: when a reopen record exists, waits
+-- 2 s so REAPER finishes loading its own startup project, deletes the
+-- record, and opens the recorded project unless it is the active one or the
+-- file is gone. Does nothing without a record.
+function M.install.reopen_after_restart()
+  if reopen_waiting or reaper.GetExtState(EXT_SECTION, REOPEN_KEY) == "" then
+    return
+  end
+  reopen_waiting = true
+  local started = reaper.time_precise()
+  local function wait()
+    if reaper.time_precise() - started < REOPEN_DELAY then
+      reaper.defer(wait)
+      return
+    end
+    reopen_waiting = false
+    local path = reaper.GetExtState(EXT_SECTION, REOPEN_KEY)
+    reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
+    if path == "" or same_path(path, M.check.project_path()) or not file_exists(path) then
+      return
+    end
+    reaper.Main_openProject(path)
+  end
+  reaper.defer(wait)
+end
+
+---------------------------------------------------------------------------
 -- Project check: installed plugins, the saved project file, the catalogue
 -- and the classification, assembled into one result.
 ---------------------------------------------------------------------------
