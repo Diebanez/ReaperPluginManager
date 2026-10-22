@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 25
+Last task number: 28
 
 ---
 
@@ -251,5 +251,35 @@ Target: claude
 Files: server/README.md
 Preconditions: 23, 24
 Feature: install-helper-windows
+
+---
+
+## 26. macOS helper core: download, verify, zip routing, quarantine
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
+Preconditions: 20
+Feature: install-helper-macos
+
+---
+
+## 27. macOS helper dmg and single-password pkg phase
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
+Preconditions: 26
+Feature: install-helper-macos
+
+---
+
+## 28. Update documentation for feature `install-helper-macos`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 26, 27
+Feature: install-helper-macos
 
 ---
