@@ -1,7 +1,8 @@
 -- RPM_CatalogueManager.lua: the "ReaperPluginManager: Catalogue management"
 -- action. The maintainer's ReaImGui window over the local catalogue draft:
 -- every draft entry, what changed since the catalogue the draft started from,
--- and the validation problems that block publishing.
+-- the validation problems that block publishing, and the three ways to add an
+-- entry: from REAPER's installed plugins, by hand, or from a draft entry file.
 
 local script_dir = debug.getinfo(1, "S").source:match("^@(.*[\\/])")
 if script_dir and not package.path:find(script_dir, 1, true) then
@@ -39,6 +40,11 @@ local state = {
   status = nil,   -- the outcome of the last button
   action = nil,   -- the button pressed this frame, run after the frame
   closing = false,
+  panel = nil,    -- the open add panel: "installed", "hand" or "import"
+  groups = {},    -- the installed-plugin groups Add from installed offers
+  filter = "",    -- the text filtering those groups
+  hand = { name = "", vendor = "", match = "" }, -- the Add by hand fields
+  draft_files = {}, -- the file names Import draft offers
 }
 
 local function message(text)
@@ -242,6 +248,204 @@ local function set_draft(draft)
 end
 
 ---------------------------------------------------------------------------
+-- Adding entries. Besides `catalogue` and `base`, the draft keeps `files`:
+-- per installer server path, a record whose `uploaded` is true once the file
+-- is on the server, so publishing never uploads it.
+---------------------------------------------------------------------------
+
+local SEP = package.config:sub(1, 1)
+
+-- The folder the catalogue assistant writes draft entry files to.
+local function drafts_dir()
+  return rpm.data_dir() .. "drafts" .. SEP
+end
+
+local FORMAT_LABELS = { vst = "VST", vst3 = "VST3", au = "AU", clap = "CLAP", lv2 = "LV2", dx = "DX" }
+
+-- The draft's entries, or nil, saying why in the status line, when the draft
+-- catalogue is invalid as a whole and takes no new entry.
+local function draft_plugins()
+  local catalogue = state.draft.catalogue
+  if state.rejected or not is_table(catalogue) or not is_table(catalogue.plugins) then
+    state.status = "No entry can be added while the draft catalogue itself is invalid."
+    return nil
+  end
+  return catalogue.plugins
+end
+
+-- Stores the changed draft and refreshes the list. Returns true, or false
+-- after showing why in the status line.
+local function save_draft()
+  local ok, err = rpm.draft.save(state.draft)
+  set_draft(state.draft)
+  if not ok then
+    state.status = err
+  end
+  return ok
+end
+
+local function added(entry)
+  state.status = ('Added "%s" (id %s).'):format(entry.name, entry.id)
+end
+
+-- The group's base name and the formats it is installed in.
+local function group_label(g)
+  local formats, seen = {}, {}
+  for _, p in ipairs(g.plugins) do
+    local label = FORMAT_LABELS[core.split_name(p.name)]
+    if label and not seen[label] then
+      seen[label] = true
+      formats[#formats + 1] = label
+    end
+  end
+  if #formats == 0 then
+    return g.base
+  end
+  return g.base .. "  [" .. table.concat(formats, ", ") .. "]"
+end
+
+local function refresh_groups()
+  state.groups = core.editor.addable_groups(rpm.check.installed(), plugins_of(state.draft.catalogue))
+  for _, g in ipairs(state.groups) do
+    g.label = group_label(g)
+  end
+end
+
+local function add_group(g)
+  local plugins = draft_plugins()
+  if not plugins then
+    return
+  end
+  local entry = core.editor.entry_from_group(g, core.editor.ids(plugins))
+  plugins[#plugins + 1] = entry
+  if save_draft() then
+    added(entry)
+  end
+  refresh_groups()
+end
+
+local function add_by_hand()
+  local plugins = draft_plugins()
+  if not plugins then
+    return
+  end
+  local h = state.hand
+  local entry, err = core.editor.manual_entry(h.name, h.vendor, h.match, core.editor.ids(plugins))
+  if not entry then
+    state.status = err
+    return
+  end
+  plugins[#plugins + 1] = entry
+  if save_draft() then
+    added(entry)
+    state.hand = { name = "", vendor = "", match = "" }
+  end
+end
+
+local function refresh_draft_files()
+  local dir, files = drafts_dir(), {}
+  reaper.EnumerateFiles(dir, -1) -- forget REAPER's cached listing
+  local i = 0
+  while true do
+    local name = reaper.EnumerateFiles(dir, i)
+    if not name then
+      break
+    end
+    if name:lower():match("%.json$") then
+      files[#files + 1] = name
+    end
+    i = i + 1
+  end
+  table.sort(files, function(a, b) return a:lower() < b:lower() end)
+  state.draft_files = files
+end
+
+local function read_text(path)
+  local f = io.open(path, "rb")
+  if not f then
+    return nil
+  end
+  local text = f:read("a")
+  f:close()
+  return text
+end
+
+-- Marks the installer files `entry` names as already on the server: an
+-- imported entry's installers keep their server paths and are never uploaded.
+local function mark_on_server(entry)
+  local files = is_table(state.draft.files) and state.draft.files or core.json.object()
+  state.draft.files = files
+  for _, path in ipairs(core.editor.installer_paths(entry)) do
+    files[path] = core.json.object({ uploaded = true })
+  end
+end
+
+-- Imports the draft entry file `name`: adds its entry, or merges it into the
+-- draft entry with the same id after confirmation, then removes the file.
+local function import_draft(name)
+  local plugins = draft_plugins()
+  if not plugins then
+    return
+  end
+  local path = drafts_dir() .. name
+  local text = read_text(path)
+  if not text then
+    state.status = "Cannot read " .. path
+    refresh_draft_files()
+    return
+  end
+  local entry, why = core.editor.read_draft_entry(text)
+  if not entry then
+    state.status = ("%s cannot be imported: %s"):format(name, why)
+    return
+  end
+  local existing
+  for _, e in ipairs(plugins) do
+    if is_table(e) and e.id == entry.id then
+      existing = e
+      break
+    end
+  end
+  if existing then
+    if not confirm(('The draft already has an entry with the id "%s" (%s).\n\n'
+        .. "Merge %s into it? Its fields replace the entry's, its match strings are added to the entry's "
+        .. "and its installers replace the entry's for the platforms it names.")
+        :format(entry.id, text_of(existing.name), name)) then
+      return
+    end
+    core.editor.merge(existing, entry)
+  else
+    plugins[#plugins + 1] = entry
+  end
+  mark_on_server(entry)
+  if not save_draft() then
+    return
+  end
+  local verb = existing and "Merged" or "Imported"
+  if os.remove(path) then
+    state.status = ('%s "%s" (id %s) from %s.'):format(verb, text_of(entry.name), entry.id, name)
+  else
+    state.status = ('%s "%s" (id %s), but %s could not be removed: delete it by hand so it is not imported again.')
+      :format(verb, text_of(entry.name), entry.id, path)
+  end
+  refresh_draft_files()
+end
+
+-- Opens the add panel `panel`, or closes it when it is the open one.
+local function toggle_panel(panel)
+  if state.panel == panel then
+    state.panel = nil
+    return
+  end
+  state.panel = panel
+  if panel == "installed" then
+    refresh_groups()
+  elseif panel == "import" then
+    refresh_draft_files()
+  end
+end
+
+---------------------------------------------------------------------------
 -- Publish and Discard
 ---------------------------------------------------------------------------
 
@@ -366,6 +570,64 @@ local function draw_list()
   ImGui.EndTable(ctx)
 end
 
+local function draw_installed()
+  wrapped("Pick an installed plugin to add it as a new entry. Plugins the draft already covers, "
+    .. "Cockos plugins and JSFX are not listed.")
+  local _, filter = ImGui.InputTextWithHint(ctx, "##filter", "Filter", state.filter)
+  state.filter = filter
+  if #state.groups == 0 then
+    ImGui.TextDisabled(ctx, "Every installed plugin is already covered by the draft.")
+    return
+  end
+  if ImGui.BeginChild(ctx, "installed", 0, 180, ImGui.ChildFlags_Border) then
+    local needle = filter:lower()
+    for i, g in ipairs(state.groups) do
+      if needle == "" or g.label:lower():find(needle, 1, true) then
+        if ImGui.Selectable(ctx, g.label .. "##group" .. i) then
+          state.action = function() add_group(g) end
+        end
+      end
+    end
+    ImGui.EndChild(ctx)
+  end
+end
+
+local function draw_by_hand()
+  local h = state.hand
+  local _
+  _, h.name = ImGui.InputText(ctx, "Name", h.name)
+  _, h.vendor = ImGui.InputText(ctx, "Vendor", h.vendor)
+  wrapped("Match strings, one per line: the names the plugin goes by in projects - its display name "
+    .. "without the format prefix, its file name, its AU or CLAP id.")
+  _, h.match = ImGui.InputTextMultiline(ctx, "##match", h.match, 0, 90)
+  if ImGui.Button(ctx, "Add entry") then
+    state.action = add_by_hand
+  end
+end
+
+local function draw_import()
+  wrapped("Draft entry files in " .. drafts_dir() .. ". Pick one to import its entry; "
+    .. "the file is removed once imported.")
+  if ImGui.Button(ctx, "Refresh") then
+    state.action = refresh_draft_files
+  end
+  if #state.draft_files == 0 then
+    ImGui.TextDisabled(ctx, "There are no draft entry files.")
+    return
+  end
+  for i, name in ipairs(state.draft_files) do
+    if ImGui.Selectable(ctx, name .. "##file" .. i) then
+      state.action = function() import_draft(name) end
+    end
+  end
+end
+
+local PANELS = {
+  { key = "installed", button = "Add from installed", draw = draw_installed },
+  { key = "hand", button = "Add by hand", draw = draw_by_hand },
+  { key = "import", button = "Import draft", draw = draw_import },
+}
+
 local function draw()
   wrapped(summary())
   if state.notice then
@@ -373,6 +635,12 @@ local function draw()
   end
   if state.rejected then
     wrapped(state.rejected, COLOURS.problem)
+  end
+  for i, p in ipairs(PANELS) do
+    if ImGui.Button(ctx, p.button) then
+      state.action = function() toggle_panel(p.key) end
+    end
+    ImGui.SameLine(ctx, 0, i == #PANELS and 24 or -1)
   end
   if ImGui.Button(ctx, "Publish") then
     state.action = publish
@@ -383,6 +651,12 @@ local function draw()
   end
   if state.status then
     wrapped(state.status)
+  end
+  for _, p in ipairs(PANELS) do
+    if state.panel == p.key then
+      ImGui.Separator(ctx)
+      p.draw()
+    end
   end
   ImGui.Separator(ctx)
   draw_list()

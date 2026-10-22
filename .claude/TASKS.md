@@ -336,7 +336,7 @@ Feature: catalogue-editor
 
 ## 34. Add entries: from installed, by hand, from a draft file
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: 10, 33

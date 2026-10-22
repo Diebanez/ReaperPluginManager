@@ -807,10 +807,11 @@ local FORMATS = {
 }
 
 -- Returns `s` without its last parenthesised group and the spaces before it,
--- or `s` itself when it does not end with `)`.
+-- plus that group's trimmed content; or `s` itself and nil when it does not
+-- end with a balanced `)`.
 local function drop_last_paren(s)
   if s:sub(-1) ~= ")" then
-    return s
+    return s, nil
   end
   local depth = 0
   for i = #s, 1, -1 do
@@ -820,18 +821,19 @@ local function drop_last_paren(s)
     elseif c == "(" then
       depth = depth - 1
       if depth == 0 then
-        return trim(s:sub(1, i - 1))
+        return trim(s:sub(1, i - 1)), trim(s:sub(i + 1, -2))
       end
     end
   end
-  return s
+  return s, nil
 end
 
 -- Splits a display name such as `VST3: Kontakt 7 (Native Instruments) (64
 -- out)` into its format (`vst3`, or nil for an unknown or missing prefix),
 -- base name (`Kontakt 7 (Native Instruments)`: trailing `(N out)` and `(Nch)`
--- removed repeatedly) and bare name (`Kontakt 7`: the base name without its
--- last parenthesis, the vendor).
+-- removed repeatedly), bare name (`Kontakt 7`: the base name without its
+-- last parenthesis) and vendor (`Native Instruments`: that parenthesis's
+-- content, nil when the base name has none).
 function M.split_name(display)
   local rest = trim(tostring(display or ""))
   local prefix, after = rest:match("^(%w+):%s*(.*)$")
@@ -854,16 +856,21 @@ local PLUGIN_EXTENSIONS = {
   clap = true, so = true, dylib = true, lv2 = true,
 }
 
--- Returns the identifier key of `ident`: everything from `<` dropped; for a
--- plugin file identifier (full path or file name) only the file name kept;
--- then `norm`. Other identifiers, AU ids among them, are normalized whole.
-function M.ident_key(ident)
+-- Returns the identifier text of `ident`: everything from `<` dropped; for a
+-- plugin file identifier (full path or file name) only the file name kept.
+-- Other identifiers, AU ids among them, are kept whole.
+function M.ident_text(ident)
   local s = trim((tostring(ident or ""):gsub("<.*$", "")))
   local ext = s:match("%.([%w]+)$")
   if ext and PLUGIN_EXTENSIONS[ext:lower()] then
     s = s:match("([^/\\]*)$")
   end
-  return M.norm(s)
+  return s
+end
+
+-- Returns the identifier key of `ident`: `norm` of its identifier text.
+function M.ident_key(ident)
+  return M.norm(M.ident_text(ident))
 end
 
 -- The `format:norm(base name)` key of a display name.
@@ -902,19 +909,19 @@ function M.missing(refs, installed)
 end
 
 -- Groups the installed plugins by `norm(base name)`, so the VST2, VST3, AU
--- and CLAP of one plugin form one group. Returns { key, base, bare, plugins }
--- per group in order of first appearance, `base` and `bare` taken from the
--- group's first plugin; a plugin whose base name normalizes to nothing is
--- left out.
+-- and CLAP of one plugin form one group. Returns { key, base, bare, vendor,
+-- plugins } per group in order of first appearance, `base`, `bare` and
+-- `vendor` taken from the group's first plugin; a plugin whose base name
+-- normalizes to nothing is left out.
 function M.group_installed(installed)
   local groups, index = {}, {}
   for _, p in ipairs(installed or {}) do
-    local _, base, bare = M.split_name(p.name)
+    local _, base, bare, vendor = M.split_name(p.name)
     local key = M.norm(base)
     if key ~= "" then
       local g = index[key]
       if not g then
-        g = { key = key, base = base, bare = bare, plugins = {} }
+        g = { key = key, base = base, bare = bare, vendor = vendor, plugins = {} }
         index[key] = g
         groups[#groups + 1] = g
       end
@@ -1352,6 +1359,213 @@ function M.activation.pending_among(installed_refs, catalogue, record)
     end
   end
   return out
+end
+
+---------------------------------------------------------------------------
+-- Catalogue editing: new entries from installed plugins, typed fields or a
+-- draft entry file
+---------------------------------------------------------------------------
+
+M.editor = {}
+
+local function list_of(v)
+  return type(v) == "table" and v ~= M.json.null and v or {}
+end
+
+-- Appends the string `s` to `list` unless its `norm` is empty or already in
+-- the set `seen`, which it then joins. Returns `list`.
+local function add_distinct(list, seen, s)
+  local k = M.norm(s)
+  if k ~= "" and not seen[k] then
+    seen[k] = true
+    list[#list + 1] = s
+  end
+  return list
+end
+
+-- The set of `id` values of the entries in `plugins`.
+function M.editor.ids(plugins)
+  local taken = {}
+  for _, e in ipairs(list_of(plugins)) do
+    if is_json_object(e) and has_text(e.id) then
+      taken[e.id] = true
+    end
+  end
+  return taken
+end
+
+-- Returns a slug of `name` that is not in the set `taken`: lower-case ASCII
+-- letters and digits, every other run of characters one `-`, `plugin` when
+-- nothing is left, and `-2`, `-3`, ... appended until it is unique.
+function M.editor.slug(name, taken)
+  local s = tostring(name or ""):lower():gsub("[^a-z0-9]+", "-"):gsub("^%-+", ""):gsub("%-+$", "")
+  if s == "" then
+    s = "plugin"
+  end
+  taken = taken or {}
+  local id, n = s, 1
+  while taken[id] do
+    n = n + 1
+    id = s .. "-" .. n
+  end
+  return id
+end
+
+-- A lookup like `catalogue.index`'s over every entry of `plugins` that has
+-- match strings, valid or not.
+local function draft_lookup(plugins)
+  local map = {}
+  for _, e in ipairs(list_of(plugins)) do
+    if is_json_object(e) then
+      for _, m in ipairs(list_of(e.match)) do
+        local k = type(m) == "string" and M.norm(m) or ""
+        if k ~= "" and map[k] == nil then
+          map[k] = e
+        end
+      end
+    end
+  end
+  return function(s)
+    return map[s]
+  end
+end
+
+-- Returns the groups of `installed` (as `group_installed` makes them) a new
+-- entry can be made from: Cockos plugins (base name ending in `(Cockos)`) and
+-- JSFX are left out, and so is every group one of whose plugins associates
+-- with an entry of `plugins`, the draft's entries.
+function M.editor.addable_groups(installed, plugins)
+  local candidates = {}
+  for _, p in ipairs(installed or {}) do
+    local format, base = M.split_name(p.name)
+    if format ~= "js" and base:sub(-8) ~= "(Cockos)" then
+      candidates[#candidates + 1] = p
+    end
+  end
+  local lookup = draft_lookup(plugins)
+  local out = {}
+  for _, g in ipairs(M.group_installed(candidates)) do
+    local covered = false
+    for _, p in ipairs(g.plugins) do
+      if associate(p, lookup) then
+        covered = true
+        break
+      end
+    end
+    if not covered then
+      out[#out + 1] = g
+    end
+  end
+  return out
+end
+
+-- Returns a new entry for the installed-plugin group `group`: `id` a slug of
+-- the bare name not in the set `taken`, `name` the bare name, `vendor` the
+-- base name's last parenthesis (left out when there is none), and `match` the
+-- base name followed by every distinct identifier text of the group's plugins
+-- (file name only for file plugins), distinct by `norm`.
+function M.editor.entry_from_group(group, taken)
+  local name = has_text(group.bare) and group.bare or group.base
+  local match, seen = M.json.array(), {}
+  add_distinct(match, seen, group.base)
+  for _, p in ipairs(group.plugins or {}) do
+    add_distinct(match, seen, M.ident_text(p.ident))
+  end
+  return M.json.object({
+    id = M.editor.slug(name, taken),
+    name = name,
+    vendor = has_text(group.vendor) and group.vendor or nil,
+    match = match,
+  })
+end
+
+-- Returns a new entry from typed fields: `name` (required), `vendor` (left
+-- out when empty) and `match_text`, one match string per line, at least one.
+-- `id` is a slug of the name not in the set `taken`. Returns nil and the
+-- reason when a required field is empty.
+function M.editor.manual_entry(name, vendor, match_text, taken)
+  name = trim(tostring(name or ""))
+  if name == "" then
+    return nil, "Type the plugin's name."
+  end
+  local match, seen = M.json.array(), {}
+  for _, line in ipairs(split_lines(tostring(match_text or ""))) do
+    add_distinct(match, seen, trim(line))
+  end
+  if #match == 0 then
+    return nil, "Type at least one match string: a name the plugin goes by in projects."
+  end
+  vendor = trim(tostring(vendor or ""))
+  return M.json.object({
+    id = M.editor.slug(name, taken),
+    name = name,
+    vendor = vendor ~= "" and vendor or nil,
+    match = match,
+  })
+end
+
+-- Reads the text of a draft entry file: a catalogue document holding exactly
+-- one entry, as the catalogue assistant writes it. Returns that entry as
+-- `catalogue.validate` leaves it, or nil and the reason it cannot be
+-- imported. Never raises.
+function M.editor.read_draft_entry(text)
+  local value, err = M.json.decode(tostring(text or ""))
+  if value == nil then
+    return nil, "it is not valid JSON: " .. (err:gsub("^json: ", ""))
+  end
+  local catalogue, warnings = M.catalogue.validate(value)
+  if not catalogue then
+    return nil, warnings
+  elseif #warnings > 0 then
+    return nil, (warnings[1]:gsub(" skipped: ", " is invalid: ", 1))
+  elseif #catalogue.plugins ~= 1 then
+    return nil, ("it holds %d entries instead of one"):format(#catalogue.plugins)
+  end
+  return catalogue.plugins[1]
+end
+
+-- Merges the imported entry `incoming` into the draft entry `entry`, in
+-- place: each field `incoming` has replaces the entry's, except that its
+-- `match` strings are added to the entry's (distinct by `norm`) and its
+-- `installers` replace the entry's platform by platform.
+function M.editor.merge(entry, incoming)
+  for k, v in pairs(incoming) do
+    if k == "match" and is_json_array(entry.match) then
+      local seen = {}
+      for _, s in ipairs(entry.match) do
+        if type(s) == "string" then
+          seen[M.norm(s)] = true
+        end
+      end
+      for _, s in ipairs(v) do
+        add_distinct(entry.match, seen, s)
+      end
+    elseif k == "installers" and is_json_object(entry.installers) and is_json_object(v) then
+      for platform, inst in pairs(v) do
+        entry.installers[platform] = inst
+      end
+    else
+      entry[k] = v
+    end
+  end
+  return entry
+end
+
+-- The distinct server paths the installers of `entry` name, in platform
+-- order (Windows, then macOS).
+function M.editor.installer_paths(entry)
+  local paths, seen = {}, {}
+  local installers = is_json_object(entry) and entry.installers
+  if is_json_object(installers) then
+    for _, platform in ipairs({ "windows", "macos" }) do
+      local inst = installers[platform]
+      if is_json_object(inst) and has_text(inst.file) and not seen[inst.file] then
+        seen[inst.file] = true
+        paths[#paths + 1] = inst.file
+      end
+    end
+  end
+  return paths
 end
 
 ---------------------------------------------------------------------------
