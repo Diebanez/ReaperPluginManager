@@ -216,7 +216,7 @@ Feature: plugin-installation
 
 ## 22. Update documentation for feature `plugin-installation`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md
 Preconditions: 20, 21

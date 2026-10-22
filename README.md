@@ -57,6 +57,49 @@ offline. The copy belongs to the server address it came from: after you change
 the address, it is not used. With no server and no cached copy, the check
 finds no catalogue and nothing is offered for installing.
 
+## Installing plugins
+
+When you agree to install the plugins the summary offers, the manager
+downloads and installs them in the background, so REAPER stays usable while
+they install. One install runs at a time, and a failure stops only the plugin
+it hit; the others go on.
+
+### The progress window
+
+A progress window lists every plugin of the run with where it stands:
+queued, downloading, verifying, installing, installed (in green) or failed (in
+red, with the reason underneath). Closing the window does not stop the
+install: when the run ends, the window opens again with the final summary.
+When nothing is heard from the installer 30 seconds after the start, every
+plugin fails with "the installer helper did not start".
+
+### One administrator prompt
+
+A run asks for administrator rights at most once, however many plugins it
+installs:
+
+- **Windows** — one administrator prompt when the run starts. Refusing it
+  fails every plugin of the run with "administrator permission denied".
+- **macOS** — only packages need administrator rights. They are installed
+  together after every other plugin of the run, behind one password prompt.
+  Cancelling it fails each package with "administrator password not
+  entered"; the plugins installed before it stay installed.
+
+### The final summary
+
+When the run ends, the window shows how many plugins were installed and how
+many failed, with the reason for each failure. Closing it hands over to
+licence activation for the installed plugins that need it.
+
+### Restart and reopen
+
+REAPER detects new plugins only when it starts. When at least one plugin was
+installed, the manager asks you to restart REAPER. After the restart, the
+project you were working on reopens on its own once REAPER has finished
+starting, unless it is already open or its file is gone. If an installed
+plugin still does not appear, rescan in REAPER:
+*Preferences > Plug-ins > VST > Re-scan*.
+
 ## Settings
 
 The settings live in `config.ini`, in the `ReaperPluginManager` folder of
