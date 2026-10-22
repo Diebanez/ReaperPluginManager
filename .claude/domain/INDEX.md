@@ -17,6 +17,9 @@ layer.
 | [technical-direction.md](./technical-direction.md) | The product's technical foundations: stack, topology, data, hosting, protocols |
 | [features/server-access.md](./features/server-access.md) | Settings file, server credentials in the OS secret store, and the shared `curl` transfer contract |
 | [features/setup-action.md](./features/setup-action.md) | The setup action: dialog, validation, action registration, startup hook, connection test |
+| [features/plugin-catalogue.md](./features/plugin-catalogue.md) | The catalogue schema and version, the Lua JSON codec, fetch with cached fallback, the match index |
+| [features/plugin-detection.md](./features/plugin-detection.md) | Pure matching logic: project scan, normalization, installed-or-missing, catalogue association, classification |
+| [features/project-watcher.md](./features/project-watcher.md) | Automatic check on every project open, the check action, the single summary window and install hand-off |
 
 ## Features
 

@@ -35,17 +35,19 @@ offline-plugin warnings, hunt down installers and ask the maintainer.
 
 ### Opening a project with missing plugins (member)
 
-1. The member opens a saved project. The tool checks it automatically, once
-   per project per REAPER session; an action runs the same check on demand on
-   the current project.
+1. The member opens a saved project. The tool checks it automatically every
+   time a project is opened (switching between open tabs is not an opening);
+   an action runs the same check on demand on the current project.
 2. Every plugin installed → nothing happens (the on-demand check says all N
    plugins are installed). An unsaved project cannot be checked; the
    on-demand check asks the member to save it first.
-3. Otherwise a summary lists, per group: plugins the catalogue can install
+3. Otherwise a single window lists everything missing, per group: plugins
+   the catalogue can install
    (with the maintainer's note), plugins with no installer for this
    platform, plugins the catalogue does not know, and instances that will
    stay offline even after installing and need replacing by hand (an AU
-   instance on Windows, a VST2 instance when only the VST3 is installed).
+   instance on Windows, a VST2 instance when only the VST3 is installed),
+   and installed plugins still pending activation.
    When the server cannot be reached, the last catalogue fetched is used and
    the summary says why.
 4. The member confirms the download and install. It runs in the background
@@ -95,7 +97,8 @@ replace an installer with a newer version, or remove a plugin.
   FTPS, HTTPS, or a local, network or cloud-synced shared folder. There is no
   central service; the release ships what a group needs to set up its own
   server, including the shared-folder option that needs no server software.
-- Only saved projects are checked, each at most once per session.
+- Only saved projects are checked, each time one is opened, with all
+  findings in a single window.
 - Installing never blocks REAPER. New plugins become visible only after a
   restart, because REAPER cannot rescan plugins while running, so the tool
   reopens the project after the restart.
@@ -130,16 +133,17 @@ want automatic checks can turn them off and keep the on-demand check.
 ### Project check
 
 Serves members, in the open-a-project flow, up to the point they agree to
-install. Every saved project opened is checked once per REAPER session —
-switching between project tabs or reopening it does not repeat the check —
-and an action checks the current project on demand. It finds every plugin
+install. Every saved project is checked each time it is opened — switching
+between project tabs is not an opening — and an action checks the current
+project on demand. It finds every plugin
 the project uses, wherever it sits (track, master, take or container
 effects), works out which are not installed here, and fetches the latest
 catalogue, falling back to the last one fetched when the server cannot be
-reached. The summary groups the missing plugins into: installable from the
-catalogue (with the maintainer's note), no installer for this platform, not
-in the catalogue (a group the user can switch off), and instances that need
-replacing by hand. With something installable, it asks whether to download
+reached. One summary window lists every missing plugin, grouped into:
+installable from the catalogue (with the maintainer's note), no installer
+for this platform, not in the catalogue (a group the user can switch off),
+instances that need replacing by hand, and installed plugins still pending
+activation. With something installable, it asks whether to download
 and install now; otherwise the summary is informational only.
 
 ### Plugin installation
