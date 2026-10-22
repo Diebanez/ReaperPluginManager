@@ -40,10 +40,10 @@ Tasks: 9, 10, 11, 12
 
 ## project-watcher — Automatic and on-demand project check
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/project-watcher.md
 Source: product-design.md § Project check
-Tasks: none
+Tasks: 16, 17, 18, 19
 
 ---
 

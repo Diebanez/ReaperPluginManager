@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 15
+Last task number: 19
 
 ---
 
@@ -151,5 +151,45 @@ Target: claude
 Files: README.md
 Preconditions: 13, 14
 Feature: setup-action
+
+---
+
+## 16. Project check assembly
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 7, 9, 11
+Feature: project-watcher
+
+---
+
+## 17. Summary window and Check project action
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/RPM_CheckProject.lua
+Preconditions: 16, 21, 29
+Feature: project-watcher
+
+---
+
+## 18. Background watcher loop
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_Watcher.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 17
+Feature: project-watcher
+
+---
+
+## 19. Update documentation for feature `project-watcher`
+
+Status: [MISSING]
+Target: claude
+Files: README.md
+Preconditions: 16, 17, 18
+Feature: project-watcher
 
 ---
