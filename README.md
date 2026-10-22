@@ -6,6 +6,85 @@ own server. When you open a project that uses plugins you do not have, the
 manager lists them, installs what the catalogue offers once you agree, and
 guides you through activating each plugin's licence with your own account.
 
+## Installing
+
+The manager needs REAPER 7 or later on Windows 10/11 or macOS; on any other
+system it does nothing. Members and the maintainer install it the same way:
+
+1. Download the release zip from the project's GitHub releases page.
+2. Unpack it into the `Scripts` folder of REAPER's resource path (*Options >
+   Show REAPER resource path in explorer/finder*), so the scripts sit in
+   `Scripts/ReaperPluginManager/`.
+3. Run Setup once: in REAPER's action list (*Actions > Show action list*),
+   choose *New action > Load ReaScript...*, pick
+   `Scripts/ReaperPluginManager/RPM_Setup.lua` and run it.
+
+## Setup
+
+Setup asks for the server connection in one dialog, saves it, and puts the
+manager to work. It refuses to run on a REAPER older than version 7 ("REAPER
+7 or later is required.") and on systems other than Windows and macOS.
+
+### The dialog
+
+The dialog proposes the current values; the password field always starts
+empty.
+
+- **Server URL** — the server address, starting with its scheme, such as
+  `ftps://example.com/plugins/`; a missing final `/` is added. An address
+  with no scheme is refused, and the dialog opens again.
+- **User** — the server account's user name. Leave it empty to connect
+  anonymously; any stored password is then removed.
+- **Password** — masked as you type. Left empty with the same user, the
+  stored password is kept. A password with spaces, tabs or line breaks is
+  refused, and the dialog opens again with the other values kept. Where the
+  password is kept is described under *The server password*.
+- **TLS** — `required`, `try` or `off`, as the `tls` key in *Settings*
+  describes; any other value becomes `required`.
+- **Automatic check** — `yes` checks every project when it is opened; `no`
+  (or `n`, `0`, `false`, `off`) checks only on demand. Any other value counts
+  as `yes`.
+
+Cancelling the dialog changes nothing.
+
+### What Setup does
+
+After you confirm the dialog, Setup:
+
+1. saves the settings to `config.ini` and the password to your system's
+   secret store;
+2. registers the manager's four actions: *Watcher*, *Check project*,
+   *Catalogue management* and *Setup*;
+3. adds a block between `-- >>> ReaperPluginManager` and
+   `-- <<< ReaperPluginManager` to REAPER's `Scripts/__startup.lua`, creating
+   the file when missing and leaving the rest of it as it is, so the watcher
+   starts with every REAPER start;
+4. starts the watcher right away, when automatic checking is on;
+5. tests the connection by fetching the catalogue.
+
+One message then reports each step, ending with "Connection succeeded: the
+catalogue lists N plugins." or "Connection failed:" and the reason. A step
+that fails is reported and the others still run where they can. A failed
+connection test keeps the saved settings, so you can fix the server side and
+run Setup again to test again.
+
+### Turning automatic checks off
+
+Run Setup and answer `no` to *Automatic check*, or set `auto = 0` in the
+`[check]` section of `config.ini`. A running watcher stops within a second,
+and from the next REAPER start the watcher exits at once; projects are then
+checked only when you run *Check project*. The startup block stays in place.
+To turn checks back on, run Setup and answer `yes`: the watcher starts at
+once.
+
+### Running Setup again
+
+Running Setup again is safe: use it to change the server, the user, the
+password, the TLS level or automatic checking, or only to test the
+connection. It proposes the current values, keeps each action already
+registered, replaces its startup block in place instead of adding a second
+one, and does not start a second watcher.
+
 ## The project check
 
 A check reads the project file as last saved, finds every plugin the project

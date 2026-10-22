@@ -146,7 +146,7 @@ Feature: setup-action
 
 ## 15. Update documentation for feature `setup-action`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md
 Preconditions: 13, 14
