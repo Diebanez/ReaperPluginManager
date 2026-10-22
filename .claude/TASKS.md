@@ -176,7 +176,7 @@ Feature: project-watcher
 
 ## 18. Background watcher loop
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_Watcher.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 17

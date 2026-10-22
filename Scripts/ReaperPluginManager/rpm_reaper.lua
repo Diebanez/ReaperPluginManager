@@ -2400,4 +2400,151 @@ function M.check.show(result)
   return true
 end
 
+---------------------------------------------------------------------------
+-- Watcher: the background loop that checks every saved project each time it
+-- is opened, one instance per REAPER session.
+---------------------------------------------------------------------------
+
+M.watcher = {}
+
+local HEARTBEAT_KEY = "watcher_heartbeat"
+local HEARTBEAT_FRESH = 3
+local POLL_INTERVAL = 1
+
+-- The open project tabs as a list of { proj, path, key } in tab order, and
+-- the set of their keys; `key` identifies the (project, path) pair.
+local function open_tabs()
+  local list, keys = {}, {}
+  local i = 0
+  while true do
+    local proj, path = reaper.EnumProjects(i)
+    if not proj then
+      break
+    end
+    path = path or ""
+    local key = tostring(proj) .. "\n" .. path
+    if not keys[key] then
+      keys[key] = true
+      list[#list + 1] = { proj = proj, path = path, key = key }
+    end
+    i = i + 1
+  end
+  return list, keys
+end
+
+-- Checks the opened project of `event` and shows the summary when the check
+-- finds something to list. An unsaved project or a missing file shows
+-- nothing; an error goes to the REAPER console.
+local function watch_check(event)
+  local ok, err = pcall(function()
+    local result = M.check.run(event.proj)
+    if result.status == "checked" then
+      M.check.show(result)
+    end
+  end)
+  if not ok then
+    console("the check of " .. event.path .. " failed: " .. one_line(err))
+  end
+end
+
+-- Starts the watcher: calls `install.reopen_after_restart` once, then, while
+-- automatic checking is on, runs a `defer` loop that writes the heartbeat
+-- each cycle and every second lists the open project tabs. A (project, path)
+-- pair present now and not in the previous poll, with a path, is an open
+-- event, checked on the following poll; while an install runs, open events
+-- queue and are checked after it ends. Errors never stop the loop. Returns
+-- false at once when the tool cannot run here or another watcher's
+-- heartbeat is younger than 3 s; when automatic checking is off it returns
+-- false too, the reopen still pending. Returns true once the loop runs.
+function M.watcher.start()
+  if M.guard() then
+    return false
+  end
+  local beat = tonumber(reaper.GetExtState(EXT_SECTION, HEARTBEAT_KEY))
+  if beat and reaper.time_precise() - beat < HEARTBEAT_FRESH then
+    return false
+  end
+  M.install.reopen_after_restart()
+  if not M.settings.load().check.auto then
+    return false
+  end
+
+  -- The value this instance wrote last: a heartbeat holding anything else
+  -- was written by a newer instance, which started while this one was
+  -- blocked longer than 3 s, and this one yields to it.
+  local written
+  local function heartbeat()
+    written = ("%.3f"):format(reaper.time_precise())
+    reaper.SetExtState(EXT_SECTION, HEARTBEAT_KEY, written, false)
+  end
+
+  local previous = {}
+  local due = {}
+  local queue, queued = {}, {}
+  local last_poll = -math.huge
+
+  local function poll()
+    local list, keys = open_tabs()
+    for _, event in ipairs(due) do
+      if keys[event.key] and not queued[event.key] then
+        queue[#queue + 1] = event
+        queued[event.key] = true
+      end
+    end
+    due = {}
+    for _, pair in ipairs(list) do
+      if not previous[pair.key] and pair.path ~= "" then
+        due[#due + 1] = pair
+      end
+    end
+    previous = keys
+    if #queue == 0 or M.install.is_running() then
+      return
+    end
+    local events = queue
+    queue, queued = {}, {}
+    for _, event in ipairs(events) do
+      if keys[event.key] then
+        watch_check(event)
+      end
+    end
+  end
+
+  -- One defer cycle. Returns "yield" when a newer instance took over,
+  -- "stop" when automatic checking was turned off, nil to go on.
+  local function cycle()
+    if reaper.GetExtState(EXT_SECTION, HEARTBEAT_KEY) ~= written then
+      return "yield"
+    end
+    heartbeat()
+    local now = reaper.time_precise()
+    if now - last_poll < POLL_INTERVAL then
+      return nil
+    end
+    last_poll = now
+    if not M.settings.load().check.auto then
+      return "stop"
+    end
+    poll()
+    return nil
+  end
+
+  local function loop()
+    local ok, outcome = pcall(cycle)
+    if not ok then
+      console("watcher: " .. one_line(outcome))
+      outcome = nil
+    end
+    if outcome == "stop" then
+      reaper.DeleteExtState(EXT_SECTION, HEARTBEAT_KEY, false)
+    elseif outcome ~= "yield" then
+      reaper.defer(loop)
+    end
+  end
+
+  heartbeat()
+  loop()
+  return true
+end
+
 return M
