@@ -19,9 +19,9 @@ In scope:
 - The settings file: its keys, defaults and parsing.
 - The server credentials: storage in the OS secret store, retrieval, and the
   short-lived credentials file a transfer needs.
-- The transfer contract: download, upload, and safe replace (upload under a
-  temporary name, then rename), with the common `curl` options derived from
-  the settings.
+- The transfer contract: download, upload (blocking or in the background),
+  safe replace (upload under a temporary name, then rename) and delete, with
+  the common `curl` options derived from the settings.
 - The option set handed to the install helpers, so they transfer exactly as
   the Lua side does.
 
@@ -53,12 +53,17 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
   afterwards. A stale one left by a crash is swept on the next start.
 - **Transfer** — builds the `curl` invocation from the settings plus the
   credentials file and runs it: download to a path, upload a local file to a
-  server path, rename on the server, and list nothing else. Common options:
+  server path, rename and delete on the server. A background upload starts
+  `curl` without waiting and reports progress and the exit code through a
+  small status file the caller polls from its `defer` loop, so large
+  installers never freeze REAPER. Common options:
   fail on HTTP/FTP errors, silent with errors shown, follow redirects,
   passive FTP, a timeout, `--ssl-reqd` for `tls=required`, `--ssl` for
   `try`, `--insecure` when the user accepts self-signed certificates. Safe
-  replace = upload as `<name>.uploading`, then rename over `<name>`; for
-  `file://` servers the same two steps are a copy and a move.
+  replace = upload as `<name>.uploading`, then rename over `<name>`. Rename
+  and delete are FTP commands (`RNFR`/`RNTO`, `DELE`) over FTP and FTPS,
+  WebDAV `MOVE`/`DELETE` over HTTPS; for `file://` servers upload, rename
+  and delete are a copy, a move and a removal.
 - **Helper hand-off** — for a detached install run, the Lua side
   materializes the credentials file before launch and passes its path with
   the TLS and insecure options; the helper deletes the file when it writes
@@ -90,8 +95,12 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
   access; a secret-store failure returns an error naming the store.
 - `transfer.download(server_path, local_path) → ok, err`
 - `transfer.upload(local_path, server_path) → ok, err`
+- `transfer.upload_async(local_path, server_path) → handle` and
+  `handle:poll() → state, bytes_done, bytes_total, err` — `state` is
+  `running`, `done` or `failed`.
 - `transfer.replace(local_path, server_path) → ok, err` — the safe replace
   above; members never observe a partial file.
+- `transfer.delete(server_path) → ok, err`
 - `transfer.helper_options() → { netrc_path?, tls, insecure }` — for the
   install launch; the caller owns starting the helper.
 - Failure contract: every transfer returns `ok = false` with a one-line
@@ -103,6 +112,8 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
 
 - `setup-action` — the only writer of the settings file and the
   credentials.
+- `catalogue-publish` — the caller of background upload, replace and
+  delete.
 - `curl` — shipped with Windows 10+ and macOS; the tool's only transfer
   mechanism.
 - Windows PowerShell (DPAPI via .NET `ProtectedData`) and the macOS
@@ -115,3 +126,6 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
 - Whether an elevated Windows helper running under a different administrator
   account can read the credentials file in the user's data folder — blocks
   installs for standard (non-admin) Windows users.
+- Whether an HTTPS server is writable only when it speaks WebDAV, leaving
+  catalogue publishing to FTP, FTPS and `file://` servers otherwise — blocks
+  publishing to a plain HTTPS server.

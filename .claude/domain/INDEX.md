@@ -24,6 +24,8 @@ layer.
 | [features/install-helper-windows.md](./features/install-helper-windows.md) | The PowerShell 5.1 install helper: one UAC prompt, download, verify, exe/msi/zip install |
 | [features/install-helper-macos.md](./features/install-helper-macos.md) | The bash 3.2 install helper: download, verify, zip/dmg/pkg install, one password prompt |
 | [features/licence-activation.md](./features/licence-activation.md) | The catalogue activation field, the post-install walk-through, pending record and reminders, saved serials |
+| [features/catalogue-editor.md](./features/catalogue-editor.md) | The maintainer's ReaImGui editor: local draft, add from installed/by hand/from a draft file, entry form, checksums |
+| [features/catalogue-publish.md](./features/catalogue-publish.md) | Publishing a draft: server-change check, background installer uploads, safe catalogue replace, orphan cleanup |
 
 ## Features
 

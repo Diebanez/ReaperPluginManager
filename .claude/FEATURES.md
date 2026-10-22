@@ -82,3 +82,21 @@ Source: product-design.md § Licence activation
 Tasks: none
 
 ---
+
+## catalogue-editor — Maintainer's catalogue editor
+
+Status: [NEW]
+Doc: .claude/domain/features/catalogue-editor.md
+Source: product-design.md § Catalogue management
+Tasks: none
+
+---
+
+## catalogue-publish — Publishing the catalogue draft
+
+Status: [NEW]
+Doc: .claude/domain/features/catalogue-publish.md
+Source: product-design.md § Catalogue management
+Tasks: none
+
+---

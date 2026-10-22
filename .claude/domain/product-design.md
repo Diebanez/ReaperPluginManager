@@ -179,9 +179,11 @@ formats of one plugin into one entry — or by typing the name, vendor and
 identities by hand. They attach an installer per platform or one package
 serving both, set the install options (silent-install switches, where
 extracted plugins go, an optional checksum), the activation method and a
-note shown to members, and the tool uploads the files and updates the
-catalogue on the server. Existing entries can gain the other platform's
+note shown to members. Existing entries can gain the other platform's
 installer, have an installer replaced by a newer version, or be removed.
+Changes collect in a local draft until the maintainer publishes them at
+once: the tool uploads the new installers, updates the catalogue on the
+server in one step, and deletes the installer files it no longer references.
 
 ### Catalogue assistant
 
