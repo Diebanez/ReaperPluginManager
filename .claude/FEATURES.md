@@ -76,10 +76,10 @@ Tasks: 26, 27, 28
 
 ## licence-activation — Guided licence activation and reminders
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/licence-activation.md
 Source: product-design.md § Licence activation
-Tasks: none
+Tasks: 29, 30, 31, 32
 
 ---
 

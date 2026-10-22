@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 28
+Last task number: 32
 
 ---
 
@@ -281,5 +281,45 @@ Target: claude
 Files: server/README.md
 Preconditions: 26, 27
 Feature: install-helper-macos
+
+---
+
+## 29. Activation field, pending record and pending query
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 6
+Feature: licence-activation
+
+---
+
+## 30. Activation walk-through window and openers
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 29
+Feature: licence-activation
+
+---
+
+## 31. Saved serials and clipboard copy
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/helpers/rpm-secret.ps1, Scripts/ReaperPluginManager/helpers/rpm-secret.sh
+Preconditions: 2, 30
+Feature: licence-activation
+
+---
+
+## 32. Update documentation for feature `licence-activation`
+
+Status: [MISSING]
+Target: claude
+Files: README.md, server/README.md
+Preconditions: 29, 30, 31
+Feature: licence-activation
 
 ---
