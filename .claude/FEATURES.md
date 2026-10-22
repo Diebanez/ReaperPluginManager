@@ -4,10 +4,10 @@
 
 ## server-access — Settings, server credentials and transfers
 
-Status: [NEW]
+Status: [PLANNED]
 Doc: .claude/domain/features/server-access.md
 Source: product-design.md § Setup
-Tasks: none
+Tasks: 1, 2, 3, 4
 
 ---
 
