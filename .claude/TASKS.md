@@ -26,7 +26,7 @@ Feature: server-access
 
 ## 3. curl transfer layer
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: 1, 2

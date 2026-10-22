@@ -1207,4 +1207,322 @@ function M.classify(missing_refs, installed, lookup, platform)
   return result
 end
 
+---------------------------------------------------------------------------
+-- Command lines
+---------------------------------------------------------------------------
+
+-- Quotes `s` as one argument for a POSIX shell.
+function M.sh_quote(s)
+  return "'" .. (tostring(s):gsub("'", "'\\''")) .. "'"
+end
+
+-- Quotes `s` as one argument for a Windows program that splits its command
+-- line by the C runtime rules: backslashes are doubled only before a quote
+-- or the closing quote.
+function M.win_quote(s)
+  local out = tostring(s):gsub('(\\*)"', function(bs)
+    return bs .. bs .. '\\"'
+  end)
+  out = out:gsub("(\\+)$", "%1%1")
+  return '"' .. out .. '"'
+end
+
+---------------------------------------------------------------------------
+-- Transfer: curl options and arguments, server URLs, error reasons and the
+-- background upload's status file
+---------------------------------------------------------------------------
+
+M.transfer = {}
+
+-- Seconds curl may take to connect, and seconds a transfer may run below one
+-- byte per second before curl gives up.
+M.transfer.CONNECT_TIMEOUT = 30
+M.transfer.STALL_TIMEOUT = 60
+
+local SCHEME_KINDS = { ftp = "ftp", ftps = "ftp", http = "http", https = "http", file = "file" }
+
+-- Returns how the server at `url` is reached: "ftp" (ftp, ftps), "http"
+-- (http, https) or "file"; nil for any other address.
+function M.transfer.kind(url)
+  local scheme = type(url) == "string" and url:match("^(%a[%w+.-]*)://")
+  return scheme and SCHEME_KINDS[scheme:lower()] or nil
+end
+
+-- The server path `path` with `/` separators and no leading slash.
+local function clean_path(path)
+  return (tostring(path or ""):gsub("\\", "/"):gsub("^/+", ""))
+end
+
+local function percent_decode(s)
+  return (s:gsub("%%(%x%x)", function(h)
+    return string.char(tonumber(h, 16))
+  end))
+end
+
+-- Returns the server path `path` in URL form: `\` becomes `/`, leading
+-- slashes go, and every byte outside [A-Za-z0-9-._~/] is percent-encoded.
+function M.transfer.encode_path(path)
+  return (clean_path(path):gsub("[^%w%-%._~/]", function(c)
+    return string.format("%%%02X", c:byte())
+  end))
+end
+
+-- The URL of `path` on the server at `base_url` (which ends with `/`).
+function M.transfer.url(base_url, path)
+  return base_url .. M.transfer.encode_path(path)
+end
+
+-- Returns the filesystem path of `path` on the file:// server at `base_url`,
+-- with `\` separators when `windows`; nil when `base_url` is not file://.
+-- Accepts file:///C:/dir/, file:///Users/dir/, file://localhost/... and
+-- file://host/share/ (a UNC path).
+function M.transfer.file_path(base_url, path, windows)
+  local rest = type(base_url) == "string" and base_url:match("^[Ff][Ii][Ll][Ee]://(.*)$")
+  if not rest then
+    return nil
+  end
+  rest = rest:gsub("\\", "/")
+  local p
+  if rest:sub(1, 1) == "/" or rest:match("^%a:") then
+    p = rest
+  elseif rest:lower():sub(1, 10) == "localhost/" then
+    p = rest:sub(10)
+  else
+    p = "//" .. rest
+  end
+  if p:match("^/%a:") then
+    p = p:sub(2)
+  end
+  p = percent_decode(p)
+  if p:sub(-1) ~= "/" then
+    p = p .. "/"
+  end
+  p = p .. clean_path(path)
+  if windows then
+    p = p:gsub("/", "\\")
+  end
+  return p
+end
+
+-- Returns the curl options every transfer shares, from the settings value
+-- `settings`: fail on server errors, silent but for errors, follow redirects,
+-- passive FTP, the timeouts, the TLS level, the insecure switch and, when
+-- `netrc_path` is given, the credentials file. `progress` drops `--silent`,
+-- keeping the progress meter a background upload reads its byte count from.
+function M.transfer.common_options(settings, netrc_path, progress)
+  local server = type(settings) == "table" and type(settings.server) == "table"
+    and settings.server or {}
+  local opts = { "--fail" }
+  if not progress then
+    opts[#opts + 1] = "--silent"
+  end
+  for _, o in ipairs({ "--show-error", "--location", "--ftp-pasv",
+      "--connect-timeout", tostring(M.transfer.CONNECT_TIMEOUT),
+      "--speed-limit", "1", "--speed-time", tostring(M.transfer.STALL_TIMEOUT) }) do
+    opts[#opts + 1] = o
+  end
+  local tls = server.tls or "required"
+  if tls == "required" then
+    opts[#opts + 1] = "--ssl-reqd"
+  elseif tls == "try" then
+    opts[#opts + 1] = "--ssl"
+  end
+  if server.insecure == true then
+    opts[#opts + 1] = "--insecure"
+  end
+  if netrc_path then
+    opts[#opts + 1] = "--netrc-file"
+    opts[#opts + 1] = netrc_path
+  end
+  return opts
+end
+
+-- Returns the curl arguments, after the common options, of operation `op`
+-- on the server at `base_url`, or nil for a file:// server; `platform` names
+-- the null device. The operations and their `a`, `b`:
+-- - "download" server path, local path;
+-- - "upload" local path, server path (missing FTP folders are created);
+-- - "rename" server path, new server path: RNFR/RNTO over FTP, WebDAV MOVE
+--   over HTTP;
+-- - "delete" server path: DELE over FTP, WebDAV DELETE over HTTP.
+function M.transfer.args(op, base_url, platform, a, b)
+  local kind = M.transfer.kind(base_url)
+  if kind ~= "ftp" and kind ~= "http" then
+    return nil
+  end
+  local null = platform == "windows" and "NUL" or "/dev/null"
+  if op == "download" then
+    return { "--output", b, M.transfer.url(base_url, a) }
+  elseif op == "upload" then
+    return { "--ftp-create-dirs", "--output", null, "--upload-file", a,
+      M.transfer.url(base_url, b) }
+  elseif op == "rename" then
+    if kind == "ftp" then
+      return { "--list-only", "--output", null, "--quote", "RNFR " .. clean_path(a),
+        "--quote", "RNTO " .. clean_path(b), base_url }
+    end
+    return { "--output", null, "--request", "MOVE",
+      "--header", "Destination: " .. M.transfer.url(base_url, b),
+      "--header", "Overwrite: T", M.transfer.url(base_url, a) }
+  elseif op == "delete" then
+    if kind == "ftp" then
+      return { "--list-only", "--output", null, "--quote", "DELE " .. clean_path(a), base_url }
+    end
+    return { "--output", null, "--request", "DELETE", M.transfer.url(base_url, a) }
+  end
+  return nil
+end
+
+-- Returns the command line running `program` with `args`, each quoted for
+-- `platform` ("windows", or a POSIX shell for any other).
+function M.transfer.command(program, args, platform)
+  local quote = platform == "windows" and M.win_quote or M.sh_quote
+  local parts = { quote(program) }
+  for _, a in ipairs(args or {}) do
+    parts[#parts + 1] = quote(a)
+  end
+  return table.concat(parts, " ")
+end
+
+local LOGIN_FAILED = "Login failed: check the user name and password"
+local NOT_FOUND = "Not found on the server"
+local PERMISSION_DENIED = "Permission denied on the server"
+
+local CURL_REASONS = {
+  [1] = "The server address uses a protocol curl does not support",
+  [2] = "curl could not start",
+  [3] = "The server address is malformed",
+  [5] = "Cannot resolve the proxy",
+  [6] = "Cannot find the server: its host name does not resolve",
+  [7] = "The server is unreachable",
+  [8] = "The server's reply was not understood",
+  [9] = PERMISSION_DENIED,
+  [18] = "The transfer ended before the whole file arrived",
+  [21] = "The server refused the command: the file is missing or permission is denied",
+  [23] = "Cannot write the local file",
+  [25] = "The server refused the upload: permission denied",
+  [26] = "Cannot read the local file",
+  [28] = "The transfer timed out",
+  [35] = "The TLS handshake with the server failed",
+  [37] = "Cannot read the file",
+  [47] = "Too many redirects",
+  [51] = "The server's TLS certificate is not trusted",
+  [52] = "The server sent no reply",
+  [55] = "Sending to the server failed",
+  [56] = "Receiving from the server failed",
+  [60] = "The server's TLS certificate is not trusted",
+  [64] = "The server refused TLS",
+  [67] = LOGIN_FAILED,
+  [77] = "Cannot read the TLS certificate store",
+  [78] = NOT_FOUND,
+  [127] = "curl was not found",
+}
+
+local HTTP_REASONS = {
+  [401] = LOGIN_FAILED,
+  [403] = PERMISSION_DENIED,
+  [404] = NOT_FOUND,
+  [405] = "The server does not accept this operation: writing over HTTPS needs WebDAV",
+  [409] = "The server folder does not exist",
+  [501] = "The server does not accept this operation: writing over HTTPS needs WebDAV",
+  [507] = "The server is out of storage space",
+}
+
+-- Replaces every plain occurrence of `find` in `s` with `with`.
+local function replace_plain(s, find, with)
+  local out, pos = {}, 1
+  while true do
+    local i, j = s:find(find, pos, true)
+    if not i then
+      break
+    end
+    out[#out + 1] = s:sub(pos, i - 1)
+    out[#out + 1] = with
+    pos = j + 1
+  end
+  out[#out + 1] = s:sub(pos)
+  return table.concat(out)
+end
+
+-- Returns the one-line reason for a failed curl run, from its exit code
+-- `code` (nil when unknown) and its error output `stderr`, whose last
+-- `curl: (N) text` line supplies the detail. Every occurrence of `secret`
+-- is masked.
+function M.transfer.error_message(code, stderr, secret)
+  local detail, detail_code
+  for line in tostring(stderr or ""):gmatch("[^\r\n]+") do
+    local c, text = line:match("^curl: %((%d+)%)%s*(.*)$")
+    if c then
+      detail_code, detail = tonumber(c), trim(text)
+    end
+  end
+  code = code or detail_code
+  local reason
+  if code == 22 then
+    local status = detail and tonumber(detail:match("(%d%d%d)"))
+    reason = HTTP_REASONS[status]
+      or (status and "The server answered with HTTP error " .. status)
+      or "The server answered with an HTTP error"
+  else
+    reason = CURL_REASONS[code] or "The transfer failed"
+  end
+  local msg = reason
+  if code then
+    msg = msg .. " (curl " .. code
+    if detail and detail ~= "" then
+      msg = msg .. ": " .. detail
+    end
+    msg = msg .. ")"
+  end
+  msg = msg:gsub("%c+", " ")
+  if type(secret) == "string" and secret ~= "" then
+    msg = replace_plain(msg, secret, "***")
+  end
+  return msg
+end
+
+local SIZE_UNITS = { [""] = 1, k = 1024, M = 1024 ^ 2, G = 1024 ^ 3, T = 1024 ^ 4, P = 1024 ^ 5 }
+
+-- Bytes of a progress-meter size such as `512`, `1024k` or `12.3M`.
+local function meter_size(token)
+  local n, unit = token:match("^(%d+%.?%d*)([kMGTP]?)$")
+  if not n then
+    return nil
+  end
+  return math.floor(tonumber(n) * SIZE_UNITS[unit])
+end
+
+-- Parses the status file of a background upload: curl's error output with
+-- its progress meter, then, once curl has ended, a line `EXIT <code>`
+-- (`EXIT -` when the code is unknown). Returns { done, code, bytes, text }:
+-- `bytes` is the byte count sent per the last complete meter row (nil before
+-- the first), `code` the exit code once done (taken from the `curl: (N)` line
+-- when the EXIT line has none), `text` the `curl:` error lines.
+function M.transfer.parse_status(text)
+  local result = { done = false }
+  local errors = {}
+  for seg in tostring(text or ""):gmatch("[^\r\n]+") do
+    local exit = seg:match("^EXIT%s+(%S+)%s*$")
+    if exit then
+      result.done = true
+      result.code = tonumber(exit)
+    elseif seg:match("^curl: ") then
+      errors[#errors + 1] = seg
+    else
+      local tokens = {}
+      for t in seg:gmatch("%S+") do
+        tokens[#tokens + 1] = t
+      end
+      if #tokens >= 12 and tokens[1]:match("^%d+$") and tokens[5]:match("^%d+$") then
+        result.bytes = meter_size(tokens[6]) or result.bytes
+      end
+    end
+  end
+  result.text = table.concat(errors, "\n")
+  if result.done and not result.code then
+    result.code = tonumber(result.text:match("curl: %((%d+)%)"))
+  end
+  return result
+end
+
 return M
