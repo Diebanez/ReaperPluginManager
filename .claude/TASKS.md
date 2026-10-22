@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 38
+Last task number: 40
 
 ---
 
@@ -381,5 +381,25 @@ Target: claude
 Files: server/README.md
 Preconditions: 37
 Feature: catalogue-publish
+
+---
+
+## 39. Catalogue assistant Claude Code skill
+
+Status: [MISSING]
+Target: claude
+Files: .claude/skills/catalogue-assistant/SKILL.md, .claude/skills/catalogue-assistant/fetch-installer.sh
+Preconditions: 3, 6
+Feature: catalogue-assistant
+
+---
+
+## 40. Update documentation for feature `catalogue-assistant`
+
+Status: [MISSING]
+Target: claude
+Files: CLAUDE.md
+Preconditions: 39
+Feature: catalogue-assistant
 
 ---
