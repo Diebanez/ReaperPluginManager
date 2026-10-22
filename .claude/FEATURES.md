@@ -73,3 +73,12 @@ Source: product-design.md § Plugin installation
 Tasks: none
 
 ---
+
+## licence-activation — Guided licence activation and reminders
+
+Status: [NEW]
+Doc: .claude/domain/features/licence-activation.md
+Source: product-design.md § Licence activation
+Tasks: none
+
+---
