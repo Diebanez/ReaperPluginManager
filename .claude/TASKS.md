@@ -156,7 +156,7 @@ Feature: setup-action
 
 ## 16. Project check assembly
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 7, 9, 11

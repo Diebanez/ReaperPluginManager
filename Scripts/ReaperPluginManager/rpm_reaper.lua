@@ -984,4 +984,111 @@ function M.catalogue.fetch()
   return nil, "none", reason
 end
 
+---------------------------------------------------------------------------
+-- Project check: installed plugins, the saved project file, the catalogue
+-- and the classification, assembled into one result.
+---------------------------------------------------------------------------
+
+M.check = {}
+
+-- Returns every installed plugin as { name, ident }, from EnumInstalledFX.
+function M.check.installed()
+  local installed, i = {}, 0
+  while true do
+    local ok, name, ident = reaper.EnumInstalledFX(i)
+    if not ok then
+      break
+    end
+    installed[#installed + 1] = { name = name, ident = ident }
+    i = i + 1
+  end
+  return installed
+end
+
+-- The file path of the project `proj` (nil for the current project), or ""
+-- when it has never been saved or is not open.
+function M.check.project_path(proj)
+  if not proj then
+    local _, path = reaper.EnumProjects(-1)
+    return path or ""
+  end
+  local i = 0
+  while true do
+    local p, path = reaper.EnumProjects(i)
+    if not p then
+      return ""
+    end
+    if p == proj then
+      return path or ""
+    end
+    i = i + 1
+  end
+end
+
+-- The activation-pending entries among `installed_refs`, through
+-- licence-activation's `M.activation.pending_for`; an empty list while that
+-- feature is absent or there is no catalogue.
+local function pending_entries(installed_refs, catalogue)
+  local activation = M.activation
+  if not catalogue or type(activation) ~= "table" or type(activation.pending_for) ~= "function" then
+    return {}
+  end
+  return activation.pending_for(installed_refs, catalogue) or {}
+end
+
+-- Checks the project `proj` (nil for the current project) as saved on disk.
+-- Returns one result whose `status` is:
+-- - "not_saved": the project has no file path; `path` is "";
+-- - "file_missing": the project file cannot be read; `path` names it;
+-- - "checked": every other field is set:
+--   `path`; `platform`; `total`, the number of distinct plugin references in
+--   the project; `refs`, `missing` and `installed_refs`, the project's
+--   references, those not installed and those installed; `groups`, the
+--   classification (installable, no_installer, unknown, replace);
+--   `pending`, the activation-pending entries among `installed_refs`;
+--   `catalogue` (nil when none could be used), `source` ("server", "cache"
+--   or "none") and `reason`, why the server catalogue was not used.
+function M.check.run(proj)
+  local path = M.check.project_path(proj)
+  if path == "" then
+    return { status = "not_saved", path = path }
+  end
+  local text = read_file(path)
+  if not text then
+    return { status = "file_missing", path = path }
+  end
+
+  local refs = core.scan_project(text)
+  local installed = M.check.installed()
+  local missing = core.missing(refs, installed)
+  local is_missing = {}
+  for _, ref in ipairs(missing) do
+    is_missing[ref] = true
+  end
+  local installed_refs = {}
+  for _, ref in ipairs(refs) do
+    if not is_missing[ref] then
+      installed_refs[#installed_refs + 1] = ref
+    end
+  end
+
+  local catalogue, source, reason = M.catalogue.fetch()
+  local lookup = catalogue and core.catalogue.index(catalogue) or nil
+  local p = platform()
+  return {
+    status = "checked",
+    path = path,
+    platform = p,
+    total = #refs,
+    refs = refs,
+    missing = missing,
+    installed_refs = installed_refs,
+    groups = core.classify(missing, installed, lookup, p),
+    pending = pending_entries(installed_refs, catalogue),
+    catalogue = catalogue,
+    source = source,
+    reason = reason,
+  }
+end
+
 return M
