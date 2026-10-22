@@ -46,7 +46,7 @@ Feature: server-access
 
 ## 5. JSON parser and encoder in pure Lua
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: none

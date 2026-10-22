@@ -332,4 +332,386 @@ function M.settings.to_ini(text, values)
   return M.ini.update(text, changes)
 end
 
+---------------------------------------------------------------------------
+-- JSON
+---------------------------------------------------------------------------
+
+M.json = {}
+
+-- The value JSON `null` decodes to, and the one that encodes as `null`.
+M.json.null = setmetatable({}, { __tostring = function() return "null" end })
+
+-- Decoded arrays and objects carry one of these metatables, so an empty one
+-- encodes back as the same kind.
+local ARRAY_MT, OBJECT_MT = {}, {}
+
+-- Marks `t` (a new table when nil) as a JSON array for the encoder.
+function M.json.array(t)
+  return setmetatable(t or {}, ARRAY_MT)
+end
+
+-- Marks `t` (a new table when nil) as a JSON object for the encoder.
+function M.json.object(t)
+  return setmetatable(t or {}, OBJECT_MT)
+end
+
+-- Decoding errors are raised as { pos, msg } and returned by json.decode.
+local function parse_fail(pos, msg)
+  error({ pos = pos, msg = msg }, 0)
+end
+
+local function parse_expected(text, pos, what)
+  if pos > #text then
+    parse_fail(pos, "unexpected end of input")
+  end
+  parse_fail(pos, "expected " .. what .. ", found '" .. text:sub(pos, pos) .. "'")
+end
+
+local function skip_ws(text, pos)
+  return text:find("[^ \t\r\n]", pos) or #text + 1
+end
+
+local UNESCAPE = {
+  ['"'] = '"', ["\\"] = "\\", ["/"] = "/",
+  b = "\b", f = "\f", n = "\n", r = "\r", t = "\t",
+}
+
+-- Reads the four hex digits of the `\uXXXX` escape starting at `pos`.
+local function read_hex4(text, pos)
+  local hex = text:match("^\\u(%x%x%x%x)", pos)
+  if not hex then
+    parse_fail(pos, "invalid \\u escape")
+  end
+  return tonumber(hex, 16)
+end
+
+-- Decodes the `\uXXXX` escape at `pos`, joining a surrogate pair into one
+-- code point. Returns the code point and the position after the escape(s).
+local function read_codepoint(text, pos)
+  local cp = read_hex4(text, pos)
+  if cp >= 0xD800 and cp <= 0xDBFF then
+    local lo = text:match("^\\u", pos + 6) and read_hex4(text, pos + 6)
+    if not lo or lo < 0xDC00 or lo > 0xDFFF then
+      parse_fail(pos, "unpaired surrogate")
+    end
+    return 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00), pos + 12
+  elseif cp >= 0xDC00 and cp <= 0xDFFF then
+    parse_fail(pos, "unpaired surrogate")
+  end
+  return cp, pos + 6
+end
+
+-- `pos` is at the opening quote.
+local function decode_string(text, pos)
+  local parts, i = {}, pos + 1
+  while true do
+    local j = text:find('[\0-\31\\"]', i)
+    if not j then
+      parse_fail(pos, "unterminated string")
+    end
+    parts[#parts + 1] = text:sub(i, j - 1)
+    local c = text:sub(j, j)
+    if c == '"' then
+      return table.concat(parts), j + 1
+    elseif c == "\\" then
+      local e = text:sub(j + 1, j + 1)
+      if e == "u" then
+        local cp
+        cp, i = read_codepoint(text, j)
+        parts[#parts + 1] = utf8.char(cp)
+      elseif UNESCAPE[e] then
+        parts[#parts + 1] = UNESCAPE[e]
+        i = j + 2
+      elseif e == "" then
+        parse_fail(pos, "unterminated string")
+      else
+        parse_fail(j, "invalid escape '\\" .. e .. "'")
+      end
+    else
+      parse_fail(j, "control character in string")
+    end
+  end
+end
+
+-- Follows the JSON number grammar strictly. A number with no fraction or
+-- exponent decodes as a Lua integer when it fits, otherwise as a float.
+local function decode_number(text, pos)
+  local int = text:match("^-?%d+", pos)
+  if not int or int:match("^-?0%d") then
+    parse_fail(pos, "invalid number")
+  end
+  local e = pos + #int
+  local frac = text:match("^%.%d*", e)
+  if frac then
+    if #frac == 1 then
+      parse_fail(pos, "invalid number")
+    end
+    e = e + #frac
+  end
+  local exp = text:match("^[eE][+-]?%d*", e)
+  if exp then
+    if not exp:match("%d$") then
+      parse_fail(pos, "invalid number")
+    end
+    e = e + #exp
+  end
+  return tonumber(text:sub(pos, e - 1)), e
+end
+
+local LITERALS = { ["true"] = true, ["false"] = false, null = M.json.null }
+
+local decode_value
+
+local function decode_array(text, pos)
+  local arr = setmetatable({}, ARRAY_MT)
+  pos = skip_ws(text, pos + 1)
+  if text:sub(pos, pos) == "]" then
+    return arr, pos + 1
+  end
+  while true do
+    local v
+    v, pos = decode_value(text, pos)
+    arr[#arr + 1] = v
+    pos = skip_ws(text, pos)
+    local c = text:sub(pos, pos)
+    if c == "]" then
+      return arr, pos + 1
+    elseif c ~= "," then
+      parse_expected(text, pos, "',' or ']'")
+    end
+    pos = pos + 1
+  end
+end
+
+local function decode_object(text, pos)
+  local obj = setmetatable({}, OBJECT_MT)
+  pos = skip_ws(text, pos + 1)
+  if text:sub(pos, pos) == "}" then
+    return obj, pos + 1
+  end
+  while true do
+    if text:sub(pos, pos) ~= '"' then
+      parse_expected(text, pos, "a string key")
+    end
+    local key, v
+    key, pos = decode_string(text, pos)
+    pos = skip_ws(text, pos)
+    if text:sub(pos, pos) ~= ":" then
+      parse_expected(text, pos, "':'")
+    end
+    v, pos = decode_value(text, pos + 1)
+    obj[key] = v
+    pos = skip_ws(text, pos)
+    local c = text:sub(pos, pos)
+    if c == "}" then
+      return obj, pos + 1
+    elseif c ~= "," then
+      parse_expected(text, pos, "',' or '}'")
+    end
+    pos = skip_ws(text, pos + 1)
+  end
+end
+
+decode_value = function(text, pos)
+  pos = skip_ws(text, pos)
+  local c = text:sub(pos, pos)
+  if c == "{" then
+    return decode_object(text, pos)
+  elseif c == "[" then
+    return decode_array(text, pos)
+  elseif c == '"' then
+    return decode_string(text, pos)
+  elseif c:match("^[-%d]$") then
+    return decode_number(text, pos)
+  end
+  for word, value in pairs(LITERALS) do
+    if text:sub(pos, pos + #word - 1) == word then
+      return value, pos + #word
+    end
+  end
+  parse_expected(text, pos, "a value")
+end
+
+local function decode_document(text)
+  local value, pos = decode_value(text, 1)
+  pos = skip_ws(text, pos)
+  if pos <= #text then
+    parse_fail(pos, "unexpected trailing characters")
+  end
+  return value
+end
+
+-- Parses JSON text, tolerating a leading UTF-8 BOM. Returns the value, or nil
+-- and an error naming the byte position in `text`. Arrays and objects come
+-- back marked (json.array / json.object) and `null` as json.null. Never
+-- raises.
+function M.json.decode(text)
+  if type(text) ~= "string" then
+    return nil, "json: input is not a string"
+  end
+  local offset = 0
+  if text:sub(1, 3) == BOM then
+    text, offset = text:sub(4), 3
+  end
+  local ok, result = pcall(decode_document, text)
+  if ok then
+    return result
+  elseif type(result) == "table" then
+    return nil, ("json: %s at byte %d"):format(result.msg, result.pos + offset)
+  end
+  return nil, "json: " .. tostring(result)
+end
+
+-- Object keys in this order first, then any other key alphabetically.
+local KEY_RANK = {}
+for i, k in ipairs({ "id", "name", "vendor", "note", "match", "installers",
+    "file", "type", "args", "sha256", "dest", "activation" }) do
+  KEY_RANK[k] = i
+end
+
+-- Keys whose value the catalogue schema defines as an array, so an unmarked
+-- empty table under them encodes as `[]`; elsewhere it encodes as `{}`.
+local ARRAY_KEYS = { plugins = true, match = true }
+
+local function key_before(a, b)
+  local ra, rb = KEY_RANK[a], KEY_RANK[b]
+  if ra and rb then
+    return ra < rb
+  elseif ra or rb then
+    return ra ~= nil
+  end
+  return a < b
+end
+
+local function encode_fail(msg)
+  error({ msg = msg }, 0)
+end
+
+local ESCAPE = {
+  ['"'] = '\\"', ["\\"] = "\\\\",
+  ["\b"] = "\\b", ["\f"] = "\\f", ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t",
+}
+
+local function encode_string(s)
+  local body = s:gsub('[\0-\31\\"]', function(c)
+    return ESCAPE[c] or ("\\u%04x"):format(c:byte())
+  end)
+  return '"' .. body .. '"'
+end
+
+-- Integers stay integers; a float takes the shortest form that reads back
+-- equal and keeps a fraction or exponent, so it decodes as a float again.
+local function encode_number(n)
+  if math.type(n) == "integer" then
+    return ("%d"):format(n)
+  elseif n ~= n or n == math.huge or n == -math.huge then
+    encode_fail("cannot encode " .. tostring(n))
+  end
+  local s
+  for precision = 15, 17 do
+    s = ("%." .. precision .. "g"):format(n):gsub(",", ".")
+    if tonumber(s) == n then
+      break
+    end
+  end
+  if not s:find("[.e]") then
+    s = s .. ".0"
+  end
+  return s
+end
+
+-- Returns the length of `t` as an array, or fails when it has any key but
+-- 1..n.
+local function array_length(t)
+  local n, count = #t, 0
+  for k in pairs(t) do
+    if math.type(k) ~= "integer" or k < 1 or k > n then
+      encode_fail("an array has a key that is not 1..n")
+    end
+    count = count + 1
+  end
+  if count ~= n then
+    encode_fail("an array has holes")
+  end
+  return n
+end
+
+local function is_array(t, key)
+  local mt = getmetatable(t)
+  if mt == ARRAY_MT then
+    return true
+  elseif mt == OBJECT_MT then
+    return false
+  elseif next(t) == nil then
+    return ARRAY_KEYS[key] == true
+  end
+  return t[1] ~= nil
+end
+
+-- Appends the encoding of `v` to `buf`; `key` is the object key `v` sits
+-- under, if any, and `indent` the indentation of its line.
+local function encode_into(v, key, indent, buf)
+  local tv = type(v)
+  if v == M.json.null then
+    buf[#buf + 1] = "null"
+  elseif tv == "string" then
+    buf[#buf + 1] = encode_string(v)
+  elseif tv == "number" then
+    buf[#buf + 1] = encode_number(v)
+  elseif tv == "boolean" then
+    buf[#buf + 1] = tostring(v)
+  elseif tv == "table" then
+    local inner = indent .. "  "
+    if is_array(v, key) then
+      local n = array_length(v)
+      if n == 0 then
+        buf[#buf + 1] = "[]"
+        return
+      end
+      buf[#buf + 1] = "[\n"
+      for i = 1, n do
+        buf[#buf + 1] = inner
+        encode_into(v[i], nil, inner, buf)
+        buf[#buf + 1] = i < n and ",\n" or "\n"
+      end
+      buf[#buf + 1] = indent .. "]"
+    else
+      local keys = {}
+      for k in pairs(v) do
+        if type(k) ~= "string" then
+          encode_fail("an object has a key that is not a string")
+        end
+        keys[#keys + 1] = k
+      end
+      if #keys == 0 then
+        buf[#buf + 1] = "{}"
+        return
+      end
+      table.sort(keys, key_before)
+      buf[#buf + 1] = "{\n"
+      for i, k in ipairs(keys) do
+        buf[#buf + 1] = inner .. encode_string(k) .. ": "
+        encode_into(v[k], k, inner, buf)
+        buf[#buf + 1] = i < #keys and ",\n" or "\n"
+      end
+      buf[#buf + 1] = indent .. "}"
+    end
+  else
+    encode_fail("cannot encode a " .. tv)
+  end
+end
+
+-- Encodes `value` as JSON indented by two spaces, with no trailing newline.
+-- Object keys follow KEY_RANK, then alphabetical order. Returns the text, or
+-- nil and an error for a value JSON cannot hold (a function, NaN, a table
+-- mixing array and object keys). Never raises.
+function M.json.encode(value)
+  local buf = {}
+  local ok, err = pcall(encode_into, value, nil, "", buf)
+  if not ok then
+    return nil, "json: " .. (type(err) == "table" and err.msg or tostring(err))
+  end
+  return table.concat(buf)
+end
+
 return M
