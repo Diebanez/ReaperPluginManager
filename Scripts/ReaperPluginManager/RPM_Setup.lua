@@ -1,10 +1,10 @@
 -- @description ReaperPluginManager
 -- @author Diebanez
--- @version 1.3.0
+-- @version 1.4.0
 -- @changelog
---   No restart needed after an install: RPM opens the FX browser, asks you
---   to choose "Scan for new plugins", and offers to reload the project once
---   it sees the new plugins. A restart remains the fallback.
+--   After an install RPM offers to restart REAPER now: it quits REAPER
+--   (asking to save unsaved changes), starts it again and reopens the
+--   projects that were open. Replaces the FX-browser scan of 1.3.0.
 -- @about
 --   Lists the plugins a REAPER project uses that are not installed, installs
 --   the ones a group's private catalogue offers, and guides licence
