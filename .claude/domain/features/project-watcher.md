@@ -51,8 +51,10 @@ Lua ReaScripts with a `gfx` window, per
   `plugin-detection`, and asks `licence-activation` which of the project's
   installed plugins are activation-pending.
 - **Summary window** — one `gfx` window per check, scrollable, listing every
-  finding without truncation, grouped: to install (`Name (Vendor) — note`),
-  no installer for this platform, not in the catalogue (`Name (Vendor)
+  finding without truncation, grouped: to install (`Name (Vendor) — note`,
+  with "unmanaged installer" beside the name of an entry that
+  `plugin-catalogue.unmanaged` flags for this platform), no installer for
+  this platform, not in the catalogue (`Name (Vendor)
   [FORMAT] ×instances`, only when `notify_unknown` is on), instances to
   replace by hand, activation pending. A banner line states when the server
   was unreachable and the cached catalogue was used, and why. Buttons:
@@ -60,8 +62,15 @@ Lua ReaScripts with a `gfx` window, per
 - **Check action** — runs the same assembly on the current project, always
   shows a result: the summary window, "All N plugins are installed", or
   "Save the project first".
-- **Install hand-off** — on "Install", passes the installable entries to
-  `plugin-installation` and closes the window.
+- **Install hand-off** — on "Install", when the installable entries include
+  at least one unmanaged installer, it first asks for confirmation in one
+  prompt naming every such plugin, worded along the lines of "<Plugin> uses
+  an unmanaged installer: a script from your group's server that runs with
+  administrator rights. Continue only if you trust the server's
+  maintainer." (safeguard set in
+  [product-design.md § Design decisions](../product-design.md#design-decisions)).
+  Declining installs nothing. Otherwise, or once confirmed, it passes the
+  installable entries to `plugin-installation` and closes the window.
 
 ## Data and state
 
@@ -75,7 +84,8 @@ Lua ReaScripts with a `gfx` window, per
 
 - Exposed: the REAPER actions "Script: RPM_Watcher.lua" and
   "Script: RPM_CheckProject.lua".
-- Expects: `plugin-catalogue.fetch`, `plugin-detection.*`,
+- Expects: `plugin-catalogue.fetch`, `plugin-catalogue.unmanaged`,
+  `plugin-detection.*`,
   `licence-activation.pending_for(installed_refs)`,
   `plugin-installation.start(entries)`, `plugin-installation.is_running()`,
   `plugin-installation.reopen_after_restart()`.

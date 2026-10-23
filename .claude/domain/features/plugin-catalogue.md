@@ -67,13 +67,31 @@ fetch lives in the module with no `reaper.*` calls.
       one installer;
     - `installers.windows`, `installers.macos` — each absent, or an object
       with `file` (required, path relative to the server root), `type`
-      (`exe` | `msi` | `zip` on Windows, `pkg` | `dmg` | `zip` on macOS;
-      default from the file extension), `args` (Windows silent switches or
-      MSI properties), `sha256`, `dest` (`vst3` | `vst2` | `clap` | `au` |
+      (`exe` | `msi` | `zip` | `script` on Windows, `pkg` | `dmg` | `zip` |
+      `script` on macOS; default from the file extension, so `script` is
+      always written out), `args` (Windows silent switches or MSI
+      properties), `sha256`, `dest` (`vst3` | `vst2` | `clap` | `au` |
       absolute path, for archives). An installer with an empty `file`
       counts as absent. A package serving both platforms is the same `file`
       named under both keys;
     - `activation` — owned by `licence-activation`.
+- **Script installer** — `type` `script` serves a plugin that ships neither
+  as an installer the helpers can run silently nor as plugin files that
+  routing by extension can place: Polarity Audio's The Cue, a VST3 plus a
+  `The Cue.instruments` data folder that must sit beside it in the VST3
+  folder, installs from a per-platform zip with an install script. Its
+  `file` is a zip holding, at its root, `install.ps1` for a Windows
+  installer or `install.sh` for a macOS installer, plus the files the
+  script installs; a package shared by both platforms may be `script` when
+  the zip holds both scripts. `sha256` covers the zip as for any installer;
+  `args` and `dest` do not apply. The helpers run it per
+  [plugin-installation.md § Helper contract](./plugin-installation.md#helper-contract).
+- **Unmanaged installer** — an entry whose installer for a platform is of
+  type `script` is an unmanaged installer on that platform: a script from
+  the group's server that runs with administrator rights, installed only
+  after the warning `project-watcher` shows
+  ([product-design.md § Design decisions](../product-design.md#design-decisions)
+  sets this safeguard).
 - **Cache** — the last valid catalogue, in the tool's local data folder,
   with the server URL it came from; a cache from a different URL than the
   current setting is ignored.
@@ -88,6 +106,9 @@ fetch lives in the module with no `reaper.*` calls.
 - `catalogue.fetch() → catalogue | nil, source, reason` — `source` is
   `server`, `cache` or `none`; `reason` explains a fallback.
 - `catalogue.index(catalogue) → lookup(normalized_string) → entry | nil`
+- `catalogue.unmanaged(entry, platform) → bool` — true when the entry's
+  installer for that platform is of type `script`; `project-watcher` and
+  `catalogue-editor` both read the unmanaged-installer flag from it.
 - Failure contract: fetch never raises; a malformed catalogue on the server
   never replaces a good cache.
 

@@ -15,7 +15,7 @@ contract in [plugin-installation.md](./plugin-installation.md#helper-contract).
 
 In scope:
 - Download and checksum verification.
-- Installing `zip`, `dmg` and `pkg` entries.
+- Installing `zip`, `dmg`, `pkg` and `script` entries.
 - Clearing the quarantine flag on copied plugins.
 
 Non-goals:
@@ -47,12 +47,18 @@ A bash 3.2 script, per [technical-direction.md](../technical-direction.md).
     package; otherwise bundles are routed. Then `hdiutil detach`, with
     `-force` when needed.
   - `pkg` — queued.
-- **Package phase** — after every other entry, generates one script that
-  runs `/usr/sbin/installer -pkg … -target /` per queued package and writes
-  its `OK`/`FAIL` line, and runs it once through `osascript … with
-  administrator privileges`: one password prompt. A cancelled prompt →
-  `FAIL <id> administrator password not entered` for every package without
-  an outcome.
+  - `script` — `ditto -x -k` into the work folder, then queued. No
+    `install.sh` at the zip's root → "no install.sh in the archive".
+- **Privileged phase** — after every other entry, generates one script that
+  runs, per queued entry, `/usr/sbin/installer -pkg … -target /` for a
+  package, or `/bin/bash install.sh` from the unpacked folder for a script
+  entry — with the `RPM_*` variables of the contract set from the plugins
+  root (`RPM_VST2_DIR` is its `VST/` folder), no time limit, and its output
+  captured for the `FAIL` message — and writes each entry's `OK`/`FAIL`
+  line. It runs that script once through `osascript … with administrator
+  privileges`: one password prompt. A cancelled prompt → `FAIL <id>
+  administrator password not entered` for every queued entry without an
+  outcome.
 - **Development fallback** — `unzip` and `cp -R` stand in when `ditto` and
   `xattr` are missing (running the script under Git Bash).
 

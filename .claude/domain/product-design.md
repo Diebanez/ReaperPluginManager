@@ -104,6 +104,12 @@ replace an installer with a newer version, or remove a plugin.
   reopens the project after the restart.
 - The tool never modifies a project: instances that cannot load on this
   platform are reported for manual replacement.
+- A plugin that no silent installer or plain plugin files can install ships
+  as an install script the maintainer packs on the server — an unmanaged
+  installer, which runs with administrator rights. The group's server is
+  self-managed and trusted by its members, so beyond the checksum check the
+  only safeguard is an explicit warning before installing one: no script
+  preview, no time limit, no signing.
 - Licensing stays legal: each user activates every plugin with their own
   licence and account. The server holds installers, never licence keys or
   vendor credentials, and the tool never shares or bypasses an activation.
@@ -143,8 +149,10 @@ reached. One summary window lists every missing plugin, grouped into:
 installable from the catalogue (with the maintainer's note), no installer
 for this platform, not in the catalogue (a group the user can switch off),
 instances that need replacing by hand, and installed plugins still pending
-activation. With something installable, it asks whether to download
-and install now; otherwise the summary is informational only.
+activation. Plugins whose installer is an unmanaged install script are
+marked as such. With something installable, it asks whether to download and
+install now, warning first, in one prompt, about every unmanaged installer
+it would run; otherwise the summary is informational only.
 
 ### Plugin installation
 
@@ -177,7 +185,9 @@ maintainer adds a plugin by picking it from REAPER's installed plugins —
 capturing how each of its formats names itself in a project, grouping the
 formats of one plugin into one entry — or by typing the name, vendor and
 identities by hand. They attach an installer per platform or one package
-serving both, set the install options (silent-install switches, where
+serving both — for a plugin no installer or plain plugin files can install,
+a zip carrying an install script, marked as an unmanaged installer — set the
+install options (silent-install switches, where
 extracted plugins go, an optional checksum), the activation method and a
 note shown to members. Existing entries can gain the other platform's
 installer, have an installer replaced by a newer version, or be removed.

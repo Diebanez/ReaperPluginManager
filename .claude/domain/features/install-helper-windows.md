@@ -16,7 +16,7 @@ contract in [plugin-installation.md](./plugin-installation.md#helper-contract).
 In scope:
 - Elevation, once per run.
 - Download and checksum verification.
-- Installing `exe`, `msi` and `zip` entries.
+- Installing `exe`, `msi`, `zip` and `script` entries.
 
 Non-goals:
 - Any other installer type — fails with "installer type not supported on
@@ -61,6 +61,13 @@ A Windows PowerShell 5.1 script, per
     An archive holding only VST2 items with no VST2 folder set fails with
     "only VST2 plugins in the archive and no VST2 folder set (vst2_dir in the
     settings)".
+  - `script` — unpack with .NET `ZipFile.ExtractToDirectory`, then run
+    `powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1`
+    (Windows PowerShell 5.1) from the unpacked folder, in the already
+    elevated helper, with the `RPM_*` variables of the contract set from
+    Vst3Dir, ClapDir and Vst2Dir; it waits with no time limit, capturing the
+    script's output for the `FAIL` message. No `install.ps1` at the zip's
+    root → "no install.ps1 in the archive".
 
 ## Data and state
 

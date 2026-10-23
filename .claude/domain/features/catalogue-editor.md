@@ -43,7 +43,9 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
   discarded.
 - **Entry list** — every draft entry with its name, vendor, platforms
   covered and activation method; entries changed, added or removed since the
-  base are marked; validation problems are shown beside their entry.
+  base are marked; an entry with a `script` installer on either platform is
+  marked "unmanaged installer" (`plugin-catalogue.unmanaged`); validation
+  problems are shown beside their entry.
 - **Add from installed** — lists REAPER's installed plugins grouped by
   `plugin-detection.group_installed`, hiding Cockos plugins, JSFX and plugins
   the draft already covers. Picking a group creates an entry: `id` = unique
@@ -56,8 +58,12 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
   schema and adds it, or merges it into the entry with the same `id` after
   confirmation; an imported file is then removed from the folder.
 - **Entry form** — note; per platform, or once as a shared package: the
-  installer, type, silent-install arguments, destination; the activation
-  method, app per platform, URL and instructions. An installer is either a
+  installer, type (`script` among the types offered on both platforms),
+  silent-install arguments and destination, the last two not applying to a
+  `script` installer, whose file is the zip with its install script(s)
+  ([plugin-catalogue.md § Data and state](./plugin-catalogue.md#data-and-state));
+  the activation method, app per platform, URL and instructions. An
+  installer is either a
   local file picked from disk — attaching it computes its SHA-256 with OS
   tools (`certutil`/PowerShell on Windows, `shasum -a 256` on macOS) and
   assigns its server path — or a file already on the server, as an imported
@@ -83,7 +89,7 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
 ## Interfaces and contracts
 
 - Exposed: the REAPER action "Script: RPM_CatalogueManager.lua".
-- Expects: `plugin-catalogue` (fetch, validate, encode), `plugin-detection`
+- Expects: `plugin-catalogue` (fetch, validate, encode, unmanaged), `plugin-detection`
   (`group_installed`, `norm`), `catalogue-publish.publish(draft)`.
 - Failure contract: an invalid draft entry blocks Publish and is shown
   inline; a vanished local installer file is flagged on its entry; a failed

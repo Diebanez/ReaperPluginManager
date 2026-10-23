@@ -17,7 +17,7 @@ own after the restart REAPER needs to see new plugins.
 
 In scope:
 - The helper contract: job file, status file, helper arguments, routing of
-  extracted plugins.
+  extracted plugins, running script installers.
 - Starting an install run, one at a time.
 - The progress window and the final summary.
 - The hand-off to licence activation.
@@ -84,6 +84,18 @@ processes.
   an existing destination item of the same name before copying, since
   copying a folder over an existing one nests it. An entry's `dest`
   overrides the routing by extension.
+- **Script installers** (`type` `script`, schema in
+  [plugin-catalogue.md](./plugin-catalogue.md#data-and-state)) — the zip is
+  downloaded and verified as usual, unpacked into the work folder, and the
+  platform's script (`install.ps1` or `install.sh`) runs from the unpacked
+  folder with the administrator rights the run already has, under the
+  `ITEM <id> install` step; the run's elevation prompt and the status-file
+  protocol are unchanged. The script receives `RPM_PAYLOAD_DIR` (the
+  unpacked folder), `RPM_VST3_DIR`, `RPM_CLAP_DIR`, `RPM_VST2_DIR` (empty
+  when the helper has no VST2 folder, i.e. `vst2_dir` is not set) and, on
+  macOS, `RPM_AU_DIR`. Exit code 0 → `OK <id>`; any other exit code →
+  `FAIL <id>` with the script's last non-empty output line, or, when it
+  printed nothing, `install script exited with code <n>`. No time limit.
 - **End** — `DONE <ok> <failed>`, then delete the credentials file.
 
 ## Data and state

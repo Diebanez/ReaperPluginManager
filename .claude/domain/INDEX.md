@@ -21,8 +21,8 @@ layer.
 | [features/plugin-detection.md](./features/plugin-detection.md) | Pure matching logic: project scan, normalization, installed-or-missing, catalogue association, classification |
 | [features/project-watcher.md](./features/project-watcher.md) | Automatic check on every project open, the check action, the single summary window and install hand-off |
 | [features/plugin-installation.md](./features/plugin-installation.md) | The helper contract (job, status, routing), starting and tracking an install run, summary, reopen after restart |
-| [features/install-helper-windows.md](./features/install-helper-windows.md) | The PowerShell 5.1 install helper: one UAC prompt, download, verify, exe/msi/zip install |
-| [features/install-helper-macos.md](./features/install-helper-macos.md) | The bash 3.2 install helper: download, verify, zip/dmg/pkg install, one password prompt |
+| [features/install-helper-windows.md](./features/install-helper-windows.md) | The PowerShell 5.1 install helper: one UAC prompt, download, verify, exe/msi/zip/script install |
+| [features/install-helper-macos.md](./features/install-helper-macos.md) | The bash 3.2 install helper: download, verify, zip/dmg/pkg/script install, one password prompt |
 | [features/licence-activation.md](./features/licence-activation.md) | The catalogue activation field, the post-install walk-through, pending record and reminders, saved serials |
 | [features/catalogue-editor.md](./features/catalogue-editor.md) | The maintainer's ReaImGui editor: local draft, add from installed/by hand/from a draft file, entry form, checksums |
 | [features/catalogue-publish.md](./features/catalogue-publish.md) | Publishing a draft: server-change check, background installer uploads, safe catalogue replace, orphan cleanup |
