@@ -1,11 +1,10 @@
 -- @description ReaperPluginManager
 -- @author Diebanez
--- @version 1.1.0
+-- @version 1.2.0
 -- @changelog
---   Script installers: a catalogue entry can ship a zip with an install
---   script (install.ps1 / install.sh); such plugins are marked "unmanaged
---   installer" and installing them asks for confirmation first.
---   Action names everywhere match the Action list (Script: RPM_....lua).
+--   New action Script: RPM_Browse.lua: browse the group's catalogue and
+--   install plugins without a project needing them.
+--   Only one install runs at a time across all RPM actions.
 -- @about
 --   Lists the plugins a REAPER project uses that are not installed, installs
 --   the ones a group's private catalogue offers, and guides licence
