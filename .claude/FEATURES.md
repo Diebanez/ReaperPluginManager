@@ -112,7 +112,7 @@ Tasks: 39, 40
 
 ## catalogue-browser — Browsing and installing from the catalogue
 
-Status: [PLANNED]
+Status: [DONE]
 Doc: .claude/domain/features/catalogue-browser.md
 Source: product-design.md § Catalogue browser
 Tasks: 54, 55, 56, 57, 58, 59, 60
