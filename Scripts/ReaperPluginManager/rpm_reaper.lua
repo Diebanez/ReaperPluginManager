@@ -2142,7 +2142,7 @@ do
       .. "The projects open now reopen after the restart.", INSTALL_TITLE, 4)
     if answer ~= 6 then
       if state.reopen and state.project ~= "" then
-        reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
+        reaper.SetExtState(EXT_SECTION, REOPEN_KEY, core.install.encode_reopen({ state.project }), true)
       end
       end_run(state)
       reaper.ShowMessageBox(state.reopen and RESTART_MESSAGE or RESTART_MESSAGE_NO_REOPEN, INSTALL_TITLE, 0)
@@ -2150,7 +2150,7 @@ do
     end
     local paths = open_project_paths()
     if #paths > 0 then
-      reaper.SetExtState(EXT_SECTION, REOPEN_KEY, table.concat(paths, "\n"), true)
+      reaper.SetExtState(EXT_SECTION, REOPEN_KEY, core.install.encode_reopen(paths), true)
     else
       reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
     end
@@ -2403,10 +2403,7 @@ function M.install.reopen_after_restart()
     reopen_waiting = false
     local record = reaper.GetExtState(EXT_SECTION, REOPEN_KEY)
     reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
-    local paths = {}
-    for line in record:gmatch("[^\r\n]+") do
-      paths[#paths + 1] = line
-    end
+    local paths = core.install.decode_reopen(record)
     for _, path in ipairs(paths) do
       if file_exists(path) and not open_tab_of(path) then
         local proj, current = reaper.EnumProjects(-1)

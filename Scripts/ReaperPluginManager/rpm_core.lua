@@ -2102,4 +2102,27 @@ function M.install.parse_status(text)
   return result
 end
 
+-- The reopen record as one line, since REAPER keeps a persistent ExtState in
+-- an ini file where a newline would cut the value: each path with `%` escaped
+-- as `%25`, the paths joined by `%0A`.
+function M.install.encode_reopen(paths)
+  local parts = {}
+  for _, path in ipairs(paths or {}) do
+    parts[#parts + 1] = (tostring(path):gsub("%%", "%%25"))
+  end
+  return table.concat(parts, "%0A")
+end
+
+-- The paths of a reopen record, in order: split on `%0A`, and on raw
+-- newlines for a record written one path per line, with `%25` unescaped and
+-- empty parts dropped.
+function M.install.decode_reopen(record)
+  local paths = {}
+  local text = tostring(record or ""):gsub("%%0A", "\n")
+  for part in text:gmatch("[^\r\n]+") do
+    paths[#paths + 1] = (part:gsub("%%25", "%%"))
+  end
+  return paths
+end
+
 return M
