@@ -75,26 +75,33 @@ processes.
   - It opens the FX browser with the main action "View: Show FX browser
     window", only when that toggle action is off, since running it on an
     open browser closes it.
-  - It tells the member to choose "Scan for new plugins" in the FX browser
-    (its FX menu, or a right-click on its filter field) and lists each
-    installed plugin as *waiting* or *detected*.
+  - The window, "Scan for the new plugins", tells the member to choose "Scan
+    for new plugins" in the FX browser (its FX menu, or a right-click on its
+    filter field) and lists each installed plugin as `Name — waiting for the
+    scan`, or `Name — detected` in green; while a plugin is waiting, a line
+    at the bottom says that closing the window falls back to restarting
+    REAPER.
   - Each second it re-reads REAPER's installed plugins (`EnumInstalledFX`)
     and marks an entry detected when `plugin-detection`'s presence step
     finds it, as the check does.
   - Every installed entry detected → the reopen record is deleted and the
-    window says the plugins are ready. A run with a project to reopen offers
-    "Reload project" and "Not now"; a run with no project offers "Close".
-    The run ends when the member answers, and "Reload project" then opens
-    the recorded project with `Main_openProject` (REAPER asks to save
+    window reads "The new plugins are ready to use". A run with a project to
+    reopen adds "REAPER detected every new plugin. Reload the project so
+    they load in it." and offers "Reload project" and "Not now"; a run with
+    no project says "REAPER detected every new plugin." and offers "Close".
+    Closing the window, or Escape, answers "Not now". The run ends when the
+    member answers, and "Reload project" then opens the recorded project,
+    when its file still exists, with `Main_openProject` (REAPER asks to save
     unsaved changes as on any open), so its offline FX load and the watcher
     checks it as on any opening.
-  - The member closes the window, or 3 minutes pass with an entry still
-    waiting → the window gives way to the restart message ("Restart REAPER:
-    it detects the new plugins at startup and this project reopens. If a
-    plugin does not appear: Preferences > Plug-ins > VST > Re-scan."), the
-    reopen record stays, and the run ends. A run started with no project to
-    reopen drops the "and this project reopens" clause ("Restart REAPER: it
-    detects the new plugins at startup. If a plugin does not appear: …").
+  - The member closes the window (or presses Escape), or 3 minutes pass,
+    with an entry still waiting → the window gives way to the restart
+    message ("Restart REAPER: it detects the new plugins at startup and this
+    project reopens. If a plugin does not appear: Preferences > Plug-ins >
+    VST > Re-scan."), the reopen record stays, and the run ends. A run
+    started with no project to reopen drops the "and this project reopens"
+    clause ("Restart REAPER: it detects the new plugins at startup. If a
+    plugin does not appear: …").
 - **Reopen after restart** — called by the watcher at start: when a reopen
   record exists, it waits 2 s (REAPER finishes loading its own startup
   project), deletes the record, and opens the recorded project if it is not
@@ -188,7 +195,9 @@ processes.
 - Failure contract: a launch failure or a silent helper is reported in the
   progress window and the summary; a run with zero successes writes no
   reopen record and opens no guided scan; a guided scan that does not detect
-  every installed entry falls back to the restart message.
+  every installed entry falls back to the restart message; an error in a
+  guided-scan cycle goes to the REAPER console, closes the window and ends
+  the run with the reopen record kept.
 
 ## Dependencies
 
