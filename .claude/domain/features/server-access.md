@@ -54,8 +54,8 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
 - **Transfer** — builds the `curl` invocation from the settings plus the
   credentials file and runs it: download to a path, upload a local file to a
   server path, rename and delete on the server. A background upload starts
-  `curl` without waiting — on Windows through `cmd.exe` run under
-  `conhost.exe --headless`, so no console window shows (launch constraints:
+  `curl` without waiting — on Windows its `cmd.exe` line runs through
+  `rpm-run-hidden.ps1` (launch constraints:
   [install-helper-windows.md](./install-helper-windows.md#interfaces-and-contracts))
   — and reports progress and the exit code through a
   small status file the caller polls from its `defer` loop, so large

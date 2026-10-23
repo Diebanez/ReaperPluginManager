@@ -71,17 +71,25 @@ of its own beyond the run.
 ## Interfaces and contracts
 
 - Invoked per the helper contract; parameters above.
-- Source constraints: ASCII only, messages included; runs under
-  `powershell.exe` 5.1 even when the parent environment carries a
-  PowerShell 7 module path (no reliance on `Get-FileHash` or
-  `Expand-Archive`).
-- Launch constraints, for every console program the Lua side starts on
-  Windows without waiting (this helper, the `cmd.exe` lines of the other
-  features): `reaper.ExecProcess` with timeout `-1` shows a console window.
-  Start `powershell.exe` with timeout `-2` (no wait, minimized) and
-  `-WindowStyle Hidden`, and prefix a `cmd.exe` line with
-  `conhost.exe --headless`; neither shows a window. `--headless` is an
-  undocumented conhost option, present on Windows 10 and 11.
+- Source constraints, for this helper and `rpm-run-hidden.ps1`: ASCII only,
+  messages included; runs under `powershell.exe` 5.1 even when the parent
+  environment carries a PowerShell 7 module path (no reliance on
+  `Get-FileHash` or `Expand-Archive`).
+- Launch constraints, for every program the Lua side starts on Windows
+  without waiting: a console program started by `reaper.ExecProcess` with
+  timeout `-1` shows a console window. Start `powershell.exe` with timeout
+  `-2` (no wait, minimized) and `-WindowStyle Hidden`, as this helper is
+  started; it shows no window. A `cmd.exe` line that must run in the
+  background goes through `rpm-run-hidden.ps1`, started the same way: the
+  Lua side writes the line to a line file in the data folder, and the script
+  runs it as `cmd.exe /d /s /c "<line>"` through .NET `ProcessStartInfo`
+  with `CreateNoWindow`, waits for it and deletes the line file. The line
+  file is plain text, never a `.cmd` or `.bat`, where `%` would need
+  doubling, and the line never passes through PowerShell's native-argument
+  passing, which mangles embedded double quotes in 5.1. Open a URL or an
+  application with `explorer.exe "<target>"`, a GUI program that creates no
+  console. Never use `conhost.exe --headless`: Windows Defender flags it as
+  malware.
 - Failure contract: every failure becomes a one-line `FAIL` message; the
   script always ends with `DONE` and deletes the credentials file.
 

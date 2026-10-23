@@ -54,9 +54,8 @@ Lua ReaScripts with a `gfx` window, per
 - **Pending query** — answers the watcher with the pending entries among a
   project's installed plugins; the watcher shows them as a group, each
   entry with an Activate button that reopens the walk-through for it.
-- **Opener** — Windows `start "" "<target>"` through `ExecProcess`, run
-  under `conhost.exe --headless` so no console window shows (launch
-  constraints:
+- **Opener** — Windows `explorer.exe "<target>"` through `ExecProcess`
+  (launch constraints:
   [install-helper-windows.md](./install-helper-windows.md#interfaces-and-contracts));
   macOS `open -a "<app>"` or `open "<url>"`.
 - **Serial store** — the same platform back ends as `server-access`'s
