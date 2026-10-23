@@ -3,7 +3,9 @@
 # each plugin, appending every step to the status file. Targets Windows
 # PowerShell 5.1; ASCII-only.
 #
-#   -JobFile <file>     job.tsv: id name type url sha256 args dest, tab-separated
+#   -JobFile <file>     job.tsv: id name type url sha256 args dest, tab-separated;
+#                       type exe, msi, zip (plugin files) or script (a zip whose
+#                       install.ps1 runs inside this elevated helper)
 #   -StatusFile <file>  appended: START <n>, ITEM <id> download|verify|install,
 #                       NOTE <id> <message>, OK <id>, FAIL <id> <message>,
 #                       DONE <ok> <failed>
@@ -288,11 +290,8 @@ function Copy-PluginItem([string]$item, [string]$folder) {
   }
 }
 
-# Unpacks the archive into `dir`\unpacked and copies its plugin items to their
-# folders, every folder resolved before the first copy. VST2 is optional: with
-# no VST2 folder set, VST2 items are skipped and their names returned, so the
-# caller can report them; an archive holding nothing else fails.
-function Install-Zip($entry, [string]$file, [string]$dir) {
+# Unpacks the archive into `dir`\unpacked and returns that folder.
+function Expand-Payload([string]$file, [string]$dir) {
   $root = Join-Path $dir 'unpacked'
   try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -300,6 +299,15 @@ function Install-Zip($entry, [string]$file, [string]$dir) {
   } catch {
     throw ('cannot unpack the archive: ' + (Get-ErrorText $_))
   }
+  return $root
+}
+
+# Unpacks the archive into `dir`\unpacked and copies its plugin items to their
+# folders, every folder resolved before the first copy. VST2 is optional: with
+# no VST2 folder set, VST2 items are skipped and their names returned, so the
+# caller can report them; an archive holding nothing else fails.
+function Install-Zip($entry, [string]$file, [string]$dir) {
+  $root = Expand-Payload $file $dir
   $items = @(Find-PluginItems $root)
   if ($items.Count -eq 0) { throw 'no plugin (.vst3, .clap, .dll) in the archive' }
   $items = @(Select-PreferredItems $items $root)
@@ -318,9 +326,52 @@ function Install-Zip($entry, [string]$file, [string]$dir) {
   return $skipped
 }
 
+# Unpacks the archive into `dir`\unpacked and runs its install.ps1 with
+# Windows PowerShell 5.1 from that folder, in this process tree, so with the
+# rights the run already has, and with the RPM_* variables of the helper
+# contract, removed again afterwards. Waits with no time limit. Any exit code
+# but 0 throws with the script's last non-empty output line.
+function Install-Script([string]$file, [string]$dir) {
+  $root = Expand-Payload $file $dir
+  if (-not [IO.File]::Exists((Join-Path $root 'install.ps1'))) {
+    throw 'no install.ps1 in the archive'
+  }
+  $vars = @{
+    RPM_PAYLOAD_DIR = $root
+    RPM_VST3_DIR    = $Vst3Dir
+    RPM_CLAP_DIR    = $ClapDir
+    RPM_VST2_DIR    = $Vst2Dir
+  }
+  $exe = Join-Path $PSHOME 'powershell.exe'
+
+  # The script's stderr must not turn into a terminating error: relax the
+  # error preference around the call and read the exit code instead.
+  Push-Location -LiteralPath $root
+  $saved = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    foreach ($name in $vars.Keys) {
+      [Environment]::SetEnvironmentVariable($name, [string]$vars[$name], 'Process')
+    }
+    $output = & $exe -NoProfile -ExecutionPolicy Bypass -File install.ps1 2>&1
+    $code = $LASTEXITCODE
+  } finally {
+    foreach ($name in $vars.Keys) {
+      [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+    }
+    $ErrorActionPreference = $saved
+    Pop-Location
+  }
+  if ($code -ne 0) {
+    $lines = @(@($output) | ForEach-Object { [string]$_ } | Where-Object { $_.Trim() })
+    if ($lines.Count -gt 0) { throw $lines[$lines.Count - 1] }
+    throw ('install script exited with code ' + $code)
+  }
+}
+
 # Downloads, verifies and installs one entry; throws with the FAIL message.
 function Install-Entry($entry) {
-  if (@('exe', 'msi', 'zip') -notcontains $entry.Type) {
+  if (@('exe', 'msi', 'zip', 'script') -notcontains $entry.Type) {
     throw 'installer type not supported on Windows'
   }
   if (-not $WorkDir) { throw 'no work folder given' }
@@ -344,6 +395,7 @@ function Install-Entry($entry) {
     'exe' { $code = Install-Exe $entry $file $dir }
     'msi' { $code = Install-Msi $entry $file }
     'zip' { $skipped = @(Install-Zip $entry $file $dir); $code = 0 }
+    'script' { Install-Script $file $dir; $code = 0 }
   }
   if ($SuccessCodes -notcontains $code) {
     throw ('installer exited with code ' + $code)

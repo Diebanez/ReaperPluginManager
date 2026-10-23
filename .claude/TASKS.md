@@ -453,7 +453,7 @@ Feature: plugin-catalogue
 
 ## 46. Windows helper script installers
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.ps1
 Preconditions: 24, 44
