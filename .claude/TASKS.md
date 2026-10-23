@@ -493,7 +493,7 @@ Feature: install-helper-macos
 
 ## 50. Unmanaged-installer mark and install warning
 
-Status: [STALE]
+Status: [MISSING]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 17, 44
@@ -503,7 +503,7 @@ Feature: project-watcher
 
 ## 51. Update documentation for feature `project-watcher`
 
-Status: [STALE]
+Status: [MISSING]
 Target: claude
 Files: README.md
 Preconditions: 50
