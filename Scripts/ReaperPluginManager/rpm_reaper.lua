@@ -649,8 +649,10 @@ local function op_delete(srv, server_path)
   return run_curl(srv, core.transfer.args("delete", srv.url, platform(), server_path))
 end
 
--- Upload under `<name>.uploading`, then rename over `<name>`; a failed
--- rename removes the temporary file.
+-- Upload under `<name>.uploading`, then rename over `<name>`. When a remote
+-- server's rename does not overwrite, `<name>` is deleted and the rename
+-- retried. A failed replace removes the temporary file, except when `<name>`
+-- was deleted and the retry failed: the temporary file is then the only copy.
 local function op_replace(srv, local_path, server_path)
   local temp = server_path .. ".uploading"
   local ok, err = op_upload(srv, local_path, temp)
@@ -658,9 +660,18 @@ local function op_replace(srv, local_path, server_path)
     return false, err
   end
   ok, err = op_rename(srv, temp, server_path)
-  if not ok then
+  if ok then
+    return true
+  end
+  if srv.kind == "file" or not op_delete(srv, server_path) then
     op_delete(srv, temp)
     return false, err
+  end
+  local rok, rerr = op_rename(srv, temp, server_path)
+  if not rok then
+    return false, server_path .. " was removed from the server, but " .. temp
+      .. " could not be renamed to it (" .. rerr .. "). The new file is on the server as "
+      .. temp .. "; rename it to " .. server_path .. " by hand, or publish again."
   end
   return true
 end
