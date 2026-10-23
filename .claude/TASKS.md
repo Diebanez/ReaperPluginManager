@@ -443,7 +443,7 @@ Feature: plugin-catalogue
 
 ## 45. Update documentation for feature `plugin-catalogue`
 
-Status: [MISSING]
+Status: [STALE]
 Target: claude
 Files: server/README.md
 Preconditions: 44
@@ -473,7 +473,7 @@ Feature: install-helper-windows
 
 ## 48. macOS helper script installers in the privileged phase
 
-Status: [MISSING]
+Status: [STALE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
 Preconditions: 27, 44
@@ -483,7 +483,7 @@ Feature: install-helper-macos
 
 ## 49. Update documentation for feature `install-helper-macos`
 
-Status: [MISSING]
+Status: [STALE]
 Target: claude
 Files: server/README.md
 Preconditions: 48
@@ -493,7 +493,7 @@ Feature: install-helper-macos
 
 ## 50. Unmanaged-installer mark and install warning
 
-Status: [MISSING]
+Status: [STALE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 17, 44
@@ -503,7 +503,7 @@ Feature: project-watcher
 
 ## 51. Update documentation for feature `project-watcher`
 
-Status: [MISSING]
+Status: [STALE]
 Target: claude
 Files: README.md
 Preconditions: 50

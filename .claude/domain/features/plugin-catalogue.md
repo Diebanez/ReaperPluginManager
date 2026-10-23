@@ -88,8 +88,9 @@ fetch lives in the module with no `reaper.*` calls.
   [plugin-installation.md § Helper contract](./plugin-installation.md#helper-contract).
 - **Unmanaged installer** — an entry whose installer for a platform is of
   type `script` is an unmanaged installer on that platform: a script from
-  the group's server that runs with administrator rights, installed only
-  after the warning `project-watcher` shows
+  the group's server that runs with administrator rights on Windows and
+  with the member's own rights on macOS, installed only after the warning
+  `project-watcher` shows
   ([product-design.md § Design decisions](../product-design.md#design-decisions)
   sets this safeguard).
 - **Cache** — the last valid catalogue, in the tool's local data folder,

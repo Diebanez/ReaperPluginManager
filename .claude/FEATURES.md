@@ -22,7 +22,7 @@ Tasks: 13, 14, 15
 
 ## plugin-catalogue — Catalogue format, codec and fetch
 
-Status: [PLANNED]
+Status: [ITERATED]
 Doc: .claude/domain/features/plugin-catalogue.md
 Source: product-design.md § Project check
 Tasks: 5, 6, 7, 8, 44, 45
@@ -40,7 +40,7 @@ Tasks: 9, 10, 11, 12
 
 ## project-watcher — Automatic and on-demand project check
 
-Status: [PLANNED]
+Status: [ITERATED]
 Doc: .claude/domain/features/project-watcher.md
 Source: product-design.md § Project check
 Tasks: 16, 17, 18, 19, 50, 51
@@ -67,7 +67,7 @@ Tasks: 23, 24, 25, 46, 47
 
 ## install-helper-macos — macOS install helper
 
-Status: [PLANNED]
+Status: [ITERATED]
 Doc: .claude/domain/features/install-helper-macos.md
 Source: product-design.md § Plugin installation
 Tasks: 26, 27, 28, 48, 49

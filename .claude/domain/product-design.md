@@ -106,7 +106,8 @@ replace an installer with a newer version, or remove a plugin.
   platform are reported for manual replacement.
 - A plugin that no silent installer or plain plugin files can install ships
   as an install script the maintainer packs on the server — an unmanaged
-  installer, which runs with administrator rights. The group's server is
+  installer, which runs with administrator rights on Windows and with the
+  member's own rights on macOS. The group's server is
   self-managed and trusted by its members, so beyond the checksum check the
   only safeguard is an explicit warning before installing one: no script
   preview, no time limit, no signing.

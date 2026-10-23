@@ -1,8 +1,8 @@
 # Install helper — macOS
 
 The macOS process that downloads, verifies and installs the plugins of one
-job, asking for the administrator password at most once, reporting each step
-to the status file.
+job, asking for the administrator password at most once and only when the
+job holds a package, reporting each step to the status file.
 
 ## Purpose
 
@@ -47,18 +47,26 @@ A bash 3.2 script, per [technical-direction.md](../technical-direction.md).
     package; otherwise bundles are routed. Then `hdiutil detach`, with
     `-force` when needed.
   - `pkg` — queued.
-  - `script` — `ditto -x -k` into the work folder, then queued. No
-    `install.sh` at the zip's root → "no install.sh in the archive".
+  - `script` — `ditto -x -k` into the work folder, then `/bin/bash
+    install.sh` from the unpacked folder, run as the member in the same
+    unprivileged pass as zip routing and never inside the administrator
+    prompt, with the `RPM_*` variables of the contract set to the folders
+    under the plugins root (`RPM_VST3_DIR` its `VST3/`, `RPM_CLAP_DIR` its
+    `CLAP/`, `RPM_VST2_DIR` its `VST/`, `RPM_AU_DIR` its `Components/`), no
+    time limit, and its output captured for the `FAIL` message. No
+    `install.sh` at the zip's root → "no install.sh in the archive". A
+    script therefore writes only where the member can — never into system
+    locations such as `/Library` or `/Applications`; a plugin that needs
+    those ships its vendor `pkg` instead. Running it as the member leaves no
+    root-owned files in the member's own folders and gives a script no more
+    rights than it needs.
 - **Privileged phase** — after every other entry, generates one script that
-  runs, per queued entry, `/usr/sbin/installer -pkg … -target /` for a
-  package, or `/bin/bash install.sh` from the unpacked folder for a script
-  entry — with the `RPM_*` variables of the contract set from the plugins
-  root (`RPM_VST2_DIR` is its `VST/` folder), no time limit, and its output
-  captured for the `FAIL` message — and writes each entry's `OK`/`FAIL`
-  line. It runs that script once through `osascript … with administrator
-  privileges`: one password prompt. A cancelled prompt → `FAIL <id>
-  administrator password not entered` for every queued entry without an
-  outcome.
+  runs `/usr/sbin/installer -pkg … -target /` per queued package and writes
+  each package's `OK`/`FAIL` line. It runs that script once through
+  `osascript … with administrator privileges`: one password prompt, and none
+  for a job whose entries are only zips and scripts. A cancelled prompt →
+  `FAIL <id> administrator password not entered` for every queued package
+  without an outcome.
 - **Development fallback** — `unzip` and `cp -R` stand in when `ditto` and
   `xattr` are missing (running the script under Git Bash).
 

@@ -64,10 +64,13 @@ Lua ReaScripts with a `gfx` window, per
   "Save the project first".
 - **Install hand-off** — on "Install", when the installable entries include
   at least one unmanaged installer, it first asks for confirmation in one
-  prompt naming every such plugin, worded along the lines of "<Plugin> uses
-  an unmanaged installer: a script from your group's server that runs with
-  administrator rights. Continue only if you trust the server's
-  maintainer." (safeguard set in
+  prompt naming every such plugin, worded for the platform the script runs
+  on — on Windows along the lines of "<Plugin> uses an unmanaged installer:
+  a script from your group's server that runs with administrator rights.
+  Continue only if you trust the server's maintainer.", on macOS "<Plugin>
+  uses an unmanaged installer: a script from your group's server that runs
+  on this Mac with your user's rights. Continue only if you trust the
+  server's maintainer." (safeguard set in
   [product-design.md § Design decisions](../product-design.md#design-decisions)).
   Declining installs nothing. Otherwise, or once confirmed, it passes the
   installable entries to `plugin-installation` and closes the window.
