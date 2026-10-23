@@ -463,7 +463,7 @@ Feature: install-helper-windows
 
 ## 47. Update documentation for feature `install-helper-windows`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md
 Preconditions: 46

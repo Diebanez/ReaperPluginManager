@@ -373,12 +373,18 @@ every plugin of the run fails with "administrator permission denied".
   followed by the entry's `args`.
 - `zip` — the archive is unpacked and the plugins in it are copied to their
   folders, as described below.
+- `script` — the archive is unpacked and the `install.ps1` at its root is run
+  with Windows PowerShell 5.1, with the run's administrator rights and no
+  further prompt. An archive with no `install.ps1` at its root fails with "no
+  install.ps1 in the archive".
 
-Any other type fails with "installer type not supported on Windows".
+Any type other than these four fails with "installer type not supported on
+Windows".
 
 An `exe` or `msi` installer succeeds when it exits with code `0`, or with
 `3010`, which asks for a restart the manager does not perform. Any other code
-fails with "installer exited with code <n>".
+fails with "installer exited with code <n>". A `script` installer succeeds
+only when its `install.ps1` exits with code `0`.
 
 ### Where plugins are copied
 
