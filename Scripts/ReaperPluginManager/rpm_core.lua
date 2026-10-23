@@ -1282,6 +1282,69 @@ function M.classify(missing_refs, installed, lookup, platform)
 end
 
 ---------------------------------------------------------------------------
+-- Catalogue browser: entry states and the search filter
+---------------------------------------------------------------------------
+
+M.browse = {}
+
+-- One row per entry of the validated `catalogue`, sorted by entry name
+-- case-insensitively (ties keep catalogue order), against the `installed`
+-- plugins (each { name, ident }) on `platform` (`windows` or `macos`). Each
+-- row is { entry, state, installer, unmanaged }: `state` is `installed` when
+-- some installed plugin associates with the entry, else `installable` when it
+-- has an installer for `platform`, else `no_installer`; `installer` is that
+-- installer or nil and `unmanaged` is catalogue.unmanaged(entry, platform),
+-- so an installable row is directly an install item. A nil or empty
+-- catalogue yields no rows.
+function M.browse.rows(catalogue, installed, platform)
+  local plugins = type(catalogue) == "table" and catalogue.plugins
+  if type(plugins) ~= "table" then
+    return {}
+  end
+  local present = M.present_entries(installed, M.catalogue.index(catalogue))
+  local rows, order = {}, {}
+  for i, entry in ipairs(plugins) do
+    local installer = M.catalogue.installer(entry, platform)
+    local state
+    if present[entry] then
+      state = "installed"
+    elseif installer then
+      state = "installable"
+    else
+      state = "no_installer"
+    end
+    rows[#rows + 1] = {
+      entry = entry,
+      state = state,
+      installer = installer,
+      unmanaged = M.catalogue.unmanaged(entry, platform),
+    }
+    order[rows[#rows]] = { key = tostring(entry.name):lower(), pos = i }
+  end
+  table.sort(rows, function(a, b)
+    local ka, kb = order[a], order[b]
+    if ka.key ~= kb.key then
+      return ka.key < kb.key
+    end
+    return ka.pos < kb.pos
+  end)
+  return rows
+end
+
+-- The rows of `rows` whose entry name contains `text` as a case-insensitive
+-- plain substring, in order; a nil or empty `text` keeps every row.
+function M.browse.filter(rows, text)
+  local needle = tostring(text or ""):lower()
+  local kept = {}
+  for _, row in ipairs(rows or {}) do
+    if needle == "" or tostring(row.entry.name):lower():find(needle, 1, true) then
+      kept[#kept + 1] = row
+    end
+  end
+  return kept
+end
+
+---------------------------------------------------------------------------
 -- Licence activation: the entry's activation field and the pending record
 ---------------------------------------------------------------------------
 

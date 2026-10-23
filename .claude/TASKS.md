@@ -563,7 +563,7 @@ Feature: catalogue-browser
 
 ## 57. Catalogue browser rows and search filter
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: 54
