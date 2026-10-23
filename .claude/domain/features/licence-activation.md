@@ -37,7 +37,7 @@ Lua ReaScripts with a `gfx` window, per
 [technical-direction.md](../technical-direction.md).
 
 - **Walk-through window** — opened by `plugin-installation` after a run,
-  before the restart message, for the installed entries whose method is not
+  before the guided plugin scan, for the installed entries whose method is not
   `none`. One step per vendor app (entries sharing an app are one step,
   listing every plugin in it), otherwise one step per entry. Each step shows
   the plugin name(s) and the maintainer's instruction, with three buttons:
@@ -85,8 +85,8 @@ Lua ReaScripts with a `gfx` window, per
 ## Interfaces and contracts
 
 - `after_install(entries)` — opens the walk-through for those needing
-  activation; returns when the window closes, so installation can show its
-  restart message.
+  activation; returns when the window closes, so installation can start its
+  guided plugin scan.
 - `pending_for(installed_refs, catalogue) → entries[]`
 - `activate(entries)` — reopens the walk-through for specific entries.
 - Failure contract: a missing vendor app falls back to its download page; a

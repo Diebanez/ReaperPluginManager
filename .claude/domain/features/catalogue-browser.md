@@ -11,7 +11,7 @@ Implements [product-design.md § Catalogue browser](../product-design.md#catalog
 a member who wants a plugin before any project uses it opens one window,
 sees what is installed, what can be installed here and what has no installer
 for this platform, ticks what they want and installs it through the same run,
-activation walk-through and restart message as the project check.
+activation walk-through and guided plugin scan as the project check.
 
 ## Scope and non-goals
 
@@ -31,7 +31,8 @@ Non-goals:
   never selectable.
 - Activation-pending reminders: the project check owns them.
 - Instances to replace, unknown plugins and anything else tied to a project.
-- Reopening a project after the restart.
+- Reloading a project after the guided scan, or reopening one after a
+  restart.
 - Registration beyond what setup does for every action, and releasing:
   the ReaPack `@version` and tag belong to the release step.
 
@@ -86,7 +87,8 @@ as the check action does.
   window closes and the ticked rows go to `plugin-installation.start` with
   no project to reopen. A refusal from `start` is shown as a message. From
   there the run is plugin-installation's: progress window, summary, licence
-  activation's walk-through, the restart message.
+  activation's walk-through, the guided scan ending in "Close" once the
+  plugins are detected, or the restart message.
 
 ### Shared with existing features
 
@@ -111,10 +113,11 @@ copied:
   rather than duplicated.
 - **Install start without reopen** (`plugin-installation`) — `start` gains
   an option saying the run has no project to reopen: no reopen record is
-  written, and the restart message drops its "this project reopens" clause
-  ("Restart REAPER: it detects the new plugins at startup. If a plugin does
-  not appear: Preferences > Plug-ins > VST > Re-scan."). Without the option
-  the project check's behaviour is unchanged.
+  written, the guided scan offers no reload once the plugins are detected,
+  and the restart message it falls back to drops its "this project reopens"
+  clause ("Restart REAPER: it detects the new plugins at startup. If a
+  plugin does not appear: Preferences > Plug-ins > VST > Re-scan."). Without
+  the option the project check's behaviour is unchanged.
 - **Install running across scripts** (`plugin-installation`) — every REAPER
   action runs in its own Lua state, so a run's in-memory flag is invisible to
   the browse action when the run was started by the watcher or the check
@@ -164,7 +167,8 @@ copied:
   unmanaged flag, the platform installer.
 - `plugin-detection` — presence of an entry among installed plugins.
 - `plugin-installation` — `start` without reopen, the cross-script
-  `is_running`, the run itself and its hand-off to licence activation.
+  `is_running`, the run itself, its hand-off to licence activation and its
+  guided scan.
 - `licence-activation` — reached through plugin-installation's completion;
   nothing called directly.
 - `project-watcher` — the unmanaged confirmation and the list primitives it
