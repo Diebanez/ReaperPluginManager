@@ -28,7 +28,7 @@ Non-goals:
   unofficial download sources.
 - Publishing: the maintainer imports, reviews and publishes through
   `catalogue-editor` and `catalogue-publish`.
-- Shipping in the release zip.
+- Shipping in the ReaPack package.
 
 ## Architecture
 

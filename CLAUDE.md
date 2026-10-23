@@ -45,6 +45,11 @@ All paths are relative to the repository root.
   `rpm-secret.*` OS secret-store helpers.
 - `server/` — the example catalogue and the server setup guide;
   `README.md` — the member-facing guide.
+- `index.xml` — the ReaPack index, written by the release workflow and never
+  edited by hand; `.reapack-index.conf` — the index generator's settings.
+- `.github/workflows/` — `check.yml` validates the package on every push to
+  `master` and every pull request; `release.yml` regenerates `index.xml` on
+  every `v*` tag.
 
 Lua detects, classifies, asks for confirmation and tracks progress; a
 detached platform helper downloads and installs, so REAPER never blocks. The
@@ -75,6 +80,22 @@ editor's Import draft lists it, and reports each field's source and
 confidence; test the fields it marks by hand before publishing from the
 editor. The skill is the maintainer's own aid and not part of the release, so
 `README.md` and `server/` do not mention it.
+
+## Releasing
+
+RPM is released as a ReaPack package whose metadata is the header of
+`Scripts/ReaperPluginManager/RPM_Setup.lua`. To release a version:
+
+1. In the last commit that touches `Scripts/ReaperPluginManager/`, bump
+   `@version` in that header and add an `@changelog`.
+2. Tag that commit `v<version>`.
+3. Push `master` and the tag. The release workflow checks that the tag names
+   the header's version at that commit, then commits the regenerated
+   `index.xml` to `master`.
+
+A new file under `Scripts/ReaperPluginManager/` is added to the header's
+`@provides` (as `[main]` when it is a REAPER action); a new `.lua` file also
+carries `@noindex` in its own header.
 
 ## Tasks implementation
 

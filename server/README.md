@@ -42,9 +42,8 @@ in the match strings for you.
 ### ReaImGui
 
 The action needs the ReaImGui extension, version 0.9 or later; members do not.
-Install it through ReaPack (*Extensions > ReaPack > Browse packages*, search
-for ReaImGui) and restart REAPER. Without it, the action says so and opens
-nothing.
+`README.md` at the repository root (*Installing*, *For the maintainer*) says
+how to install it. Without it, the action says so and opens nothing.
 
 ### The local draft
 

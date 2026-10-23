@@ -424,7 +424,7 @@ Preconditions: none
 
 ## 43. Document the ReaPack install and release
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md, server/README.md, CLAUDE.md, .claude/domain/technical-direction.md, .claude/domain/features/catalogue-assistant.md, .claude/domain/design-process.md
 Preconditions: 42

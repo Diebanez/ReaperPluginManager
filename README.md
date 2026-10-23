@@ -9,15 +9,45 @@ guides you through activating each plugin's licence with your own account.
 ## Installing
 
 The manager needs REAPER 7 or later on Windows 10/11 or macOS; on any other
-system it does nothing. Members and the maintainer install it the same way:
+system it does nothing. Members and the maintainer install it the same way,
+through ReaPack, REAPER's package manager:
 
-1. Download the release zip from the project's GitHub releases page.
-2. Unpack it into the `Scripts` folder of REAPER's resource path (*Options >
-   Show REAPER resource path in explorer/finder*), so the scripts sit in
-   `Scripts/ReaperPluginManager/`.
-3. Run Setup once: in REAPER's action list (*Actions > Show action list*),
-   choose *New action > Load ReaScript...*, pick
-   `Scripts/ReaperPluginManager/RPM_Setup.lua` and run it.
+1. If REAPER has no *Extensions > ReaPack* menu, install ReaPack first, as
+   [reapack.com](https://reapack.com) describes, and restart REAPER.
+2. Choose *Extensions > ReaPack > Import repositories...*, paste
+   `https://github.com/Diebanez/ReaperPluginManager/raw/master/index.xml`
+   and confirm.
+3. Choose *Extensions > ReaPack > Browse packages*, find the
+   ReaperPluginManager package, install it and apply the change.
+4. Run Setup once: open REAPER's action list (*Actions > Show action list*),
+   search for `RPM_Setup`, and run *Script: RPM_Setup.lua*.
+
+ReaPack puts the files in `Scripts/ReaperPluginManager/Scripts/ReaperPluginManager/`
+under REAPER's resource path (*Options > Show REAPER resource path in
+explorer/finder*).
+
+### Updating and removing
+
+Updates arrive through ReaPack's package synchronisation (*Extensions >
+ReaPack > Synchronize packages*); there is nothing to download by hand.
+
+To remove the manager, uninstall the ReaperPluginManager package in
+*Extensions > ReaPack > Browse packages*. ReaPack removes the scripts but
+leaves Setup's block in REAPER's `Scripts/__startup.lua`: delete it by hand,
+from the `-- >>> ReaperPluginManager` line to the
+`-- <<< ReaperPluginManager` line (*What Setup does* below).
+
+### For the maintainer
+
+The *Catalogue management* action also needs the ReaImGui extension, which
+ReaPack cannot install as a dependency of this package. Install it yourself
+from *Extensions > ReaPack > Browse packages*, searching for ReaImGui (it
+comes from the ReaTeam Extensions repository, which ReaPack includes by
+default), and restart REAPER.
+
+The ReaPack package carries only the scripts and their helpers. The server
+setup guide and the example catalogue are in the repository's
+[`server/` folder](https://github.com/Diebanez/ReaperPluginManager/tree/master/server).
 
 ## Setup
 

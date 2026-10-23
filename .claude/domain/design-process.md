@@ -34,7 +34,7 @@ with no revenue model.
 - product-design.md — the product, maintainer and member roles, three key
   flows, design decisions, six high-level features.
 - technical-direction.md — Lua in REAPER, PowerShell/bash helpers, `curl`,
-  ReaImGui for the catalogue editor, GitHub zip release, two open decisions.
+  ReaImGui for the catalogue editor, ReaPack release, two open decisions.
 
 Next: `/architect <feature>` for one of the six features.
 
@@ -42,7 +42,7 @@ Next: `/architect <feature>` for one of the six features.
 
 - The domain documents supersede SPEC.md where they differ: catalogue upload,
   licence activation, English-only interface, catalogue management replacing
-  the export flow, no automated tests, GitHub zip release.
+  the export flow, no automated tests, ReaPack release.
 - Export-from-installed was replaced by catalogue management: it only drafted
   entries with no installers and could not add a second platform to an
   existing entry.
@@ -57,9 +57,11 @@ Next: `/architect <feature>` for one of the six features.
 - Helpers stay scripts rather than one compiled program: an unsigned binary
   that launches installers as administrator trips Gatekeeper and SmartScreen,
   and there is no signing budget.
-- ReaImGui is accepted for the maintainer only; members keep zero extensions.
-- GitHub zip rather than ReaPack: every group must also set up its own
-  server, so the release ships server setup material beside the scripts.
+- Members need ReaPack to install the manager; ReaImGui stays the
+  maintainer's alone.
+- The release is a ReaPack package of the scripts and helpers, indexed by
+  this repository; the server setup material every group needs stays in the
+  public repository's `server/` folder.
 - The catalogue replace deletes before renaming where the rename will not
   overwrite: Windows-hosted FTP servers refuse it, and the brief absence is
   covered by members' cached catalogue.

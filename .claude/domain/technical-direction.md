@@ -70,11 +70,14 @@ no queue or scheduler beyond these.
 - **Server** — whatever the group runs: FTP with explicit TLS, FTPS, HTTPS,
   or a local, network or cloud-synced folder reached by `file://`. No central
   service exists.
-- **Release** — a zip on GitHub releases, holding the scripts, the helpers,
-  an example catalogue, the server folder layout and a server setup guide that
-  includes the shared-synced-folder option. Users install by unpacking into
-  REAPER's `Scripts` folder and running setup. The Claude-based catalogue
-  assistant lives in this repository's `.claude/` and is left out of the zip.
+- **Release** — a ReaPack package holding the scripts and the helpers,
+  indexed by this repository's `index.xml`, which a GitHub Action regenerates
+  on every version tag. Users install ReaPack, import the repository, install
+  the package and run setup. The example catalogue, the server folder layout
+  and a server setup guide that includes the shared-synced-folder option stay
+  in the public repository's `server/` folder. The Claude-based catalogue
+  assistant lives in this repository's `.claude/` and is left out of the
+  package.
 
 ## Inter-component protocols
 
