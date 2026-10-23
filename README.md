@@ -309,3 +309,8 @@ Each machine uses one server account, for checking projects, installing and
 publishing alike. Members use a read-only account; the maintainer uses an
 account that can write, and a write attempted with a read-only account fails
 with the server's own error.
+
+## Licence
+
+ReaperPluginManager is licensed under the GNU General Public License v3.0.
+The full text is in [`LICENSE`](LICENSE).

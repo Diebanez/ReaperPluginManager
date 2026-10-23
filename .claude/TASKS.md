@@ -406,7 +406,7 @@ Feature: catalogue-assistant
 
 ## 41. License the project under GPL-3.0
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: LICENSE, README.md
 Preconditions: none
