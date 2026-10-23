@@ -125,6 +125,6 @@ processes.
 ## Open questions
 
 - Whether `reaper.ExecProcess` with the no-wait timeout starts
-  `powershell.exe` with no visible window (SPEC.md §11).
-- Whether REAPER, with default preferences, detects newly installed plugins
-  at startup (SPEC.md §11).
+  `powershell.exe` with no visible window.
+- Whether REAPER on macOS, with default preferences, detects newly installed
+  plugins at startup; on Windows it does.
