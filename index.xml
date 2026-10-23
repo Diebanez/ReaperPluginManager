@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperPluginManager" commit="10d04b7a7337cf613a232acbe811cb2fb04a49a3">
+<index version="1" name="ReaperPluginManager" commit="f1714e1da5870edfbdce2984c9af3ecf1d6a825e">
   <category name="Scripts/ReaperPluginManager">
     <reapack name="RPM_Setup.lua" type="script" desc="ReaperPluginManager">
       <metadata>
@@ -8,7 +8,7 @@
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 Lists the plugins a REAPER project uses that are not installed, installs the ones a group's private catalogue offers, and guides licence activation. Windows and macOS; run {\i Script: RPM_Setup.lua} first.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 Adds four actions: {\i Script: RPM_Setup.lua}, {\i Script: RPM_Watcher.lua}, {\i Script: RPM_CheckProject.lua} and {\i Script: RPM_CatalogueManager.lua} (the maintainer's catalogue editor, which needs ReaImGui).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Adds five actions: {\i Script: RPM_Setup.lua}, {\i Script: RPM_Watcher.lua}, {\i Script: RPM_CheckProject.lua}, {\i Script: RPM_Browse.lua} (installs any plugin the catalogue offers) and {\i Script: RPM_CatalogueManager.lua} (the maintainer's catalogue editor, which needs ReaImGui).\par}
 }
 ]]></description>
       </metadata>
@@ -42,6 +42,23 @@ Action names everywhere match the Action list (Script: RPM_....lua).]]></changel
         <source file="helpers/rpm-secret.sh">https://github.com/Diebanez/ReaperPluginManager/raw/10d04b7a7337cf613a232acbe811cb2fb04a49a3/Scripts/ReaperPluginManager/helpers/rpm-secret.sh</source>
         <source file="helpers/rpm-run-hidden.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/10d04b7a7337cf613a232acbe811cb2fb04a49a3/Scripts/ReaperPluginManager/helpers/rpm-run-hidden.ps1</source>
       </version>
+      <version name="1.2.0" author="Diebanez" time="2026-10-23T17:43:13Z">
+        <changelog><![CDATA[New action Script: RPM_Browse.lua: browse the group's catalogue and
+install plugins without a project needing them.
+Only one install runs at a time across all RPM actions.]]></changelog>
+        <source main="main">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/RPM_Setup.lua</source>
+        <source main="main" file="RPM_Watcher.lua">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/RPM_Watcher.lua</source>
+        <source main="main" file="RPM_CheckProject.lua">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/RPM_CheckProject.lua</source>
+        <source main="main" file="RPM_Browse.lua">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/RPM_Browse.lua</source>
+        <source main="main" file="RPM_CatalogueManager.lua">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/RPM_CatalogueManager.lua</source>
+        <source file="rpm_core.lua">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/rpm_core.lua</source>
+        <source file="rpm_reaper.lua">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/rpm_reaper.lua</source>
+        <source file="helpers/rpm-install.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/helpers/rpm-install.ps1</source>
+        <source file="helpers/rpm-install.sh">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/helpers/rpm-install.sh</source>
+        <source file="helpers/rpm-secret.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/helpers/rpm-secret.ps1</source>
+        <source file="helpers/rpm-secret.sh">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/helpers/rpm-secret.sh</source>
+        <source file="helpers/rpm-run-hidden.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/f1714e1da5870edfbdce2984c9af3ecf1d6a825e/Scripts/ReaperPluginManager/helpers/rpm-run-hidden.ps1</source>
+      </version>
     </reapack>
   </category>
   <metadata>
@@ -50,7 +67,7 @@ Action names everywhere match the Action list (Script: RPM_....lua).]]></changel
 \widowctrl\hyphauto
 
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaperPluginManager\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 ReaperPluginManager keeps a group of REAPER users able to open each other's projects. One maintainer keeps a catalogue of plugin installers on the group's own server. When you open a project that uses plugins you do not have, the manager lists them, installs what the catalogue offers once you agree, and guides you through activating each plugin's licence with your own account.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ReaperPluginManager keeps a group of REAPER users able to open each other's projects. One maintainer keeps a catalogue of plugin installers on the group's own server. When you open a project that uses plugins you do not have, the manager lists them, installs what the catalogue offers once you agree, and guides you through activating each plugin's licence with your own account. You can also browse the catalogue and install any plugin it offers before a project needs it.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Installing\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 The manager needs REAPER 7 or later on Windows 10/11 or macOS; on any other system it does nothing. Members and the maintainer install it the same way, through ReaPack, REAPER's package manager:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab If REAPER has no {\i Extensions > ReaPack} menu, install ReaPack first, as {\field{\*\fldinst{HYPERLINK "https://reapack.com"}}{\fldrslt{\ul
@@ -83,7 +100,7 @@ reapack.com
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 What Setup does\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 After you confirm the dialog, Setup:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab saves the settings to {\f1 config.ini} and the password to your system's secret store;\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab registers the manager's four actions: {\i Script: RPM_Watcher.lua}, {\i Script: RPM_CheckProject.lua}, {\i Script: RPM_CatalogueManager.lua} and {\i Script: RPM_Setup.lua};\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab registers the manager's five actions: {\i Script: RPM_Watcher.lua}, {\i Script: RPM_CheckProject.lua}, {\i Script: RPM_Browse.lua}, {\i Script: RPM_CatalogueManager.lua} and {\i Script: RPM_Setup.lua};\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab adds a block between {\f1 -- >>> ReaperPluginManager} and {\f1 -- <<< ReaperPluginManager} to REAPER's {\f1 Scripts/__startup.lua}, creating the file when missing and leaving the rest of it as it is, so the watcher starts with every REAPER start;\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab starts the watcher right away, when automatic checking is on;\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab tests the connection by fetching the catalogue.\sa180\par}
@@ -112,9 +129,22 @@ reapack.com
 {\pard \ql \f0 \sa180 \li0 \fi0 Formats loaded on Windows: VST2, VST3, CLAP, LV2 and DX. On macOS: VST2, VST3, AU, CLAP and LV2.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 When the server cannot be reached\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Every check fetches the catalogue from the server and keeps a copy of it on your machine. When the server cannot be reached, or the catalogue on it cannot be read, the check uses the cached copy, so a project can still be checked offline, and a banner under the summary's heading says so and why: "The server catalogue could not be used, so the cached one was." followed by the reason. The copy belongs to the server address it came from: after you change the address, it is not used. With no server and no cached copy, the check finds no catalogue, nothing is offered for installing, and the banner reads "No catalogue is available, so nothing can be installed." with the reason.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Browsing the catalogue\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The {\i Script: RPM_Browse.lua} action lists every plugin the group's catalogue offers, so you can install one before any project uses it. Run it from REAPER's action list; it needs no open project.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The catalogue window\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 One window lists the catalogue's plugins, sorted by name. Its heading counts them and says how many are installed on your machine and how many can be installed. Each plugin is listed as {\i Name (Vendor)} with the maintainer's note, and {\i unmanaged installer} beside the name of a plugin that installs through an install script ({\i The summary window} above). Each plugin is in one of three states:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Installed} \u8212- REAPER lists the plugin, recognised the way the project check recognises it. The row says "installed" and cannot be ticked: the browser never reinstalls or updates a plugin.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Can be installed} \u8212- the catalogue has an installer for your platform. The row carries a checkbox; a click anywhere on the row ticks or unticks it.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b No installer} \u8212- the catalogue knows the plugin but has no installer for your platform. The row says "no installer for Windows" (or macOS) and cannot be ticked.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Typing filters the list: it keeps the plugins whose name contains what you typed, ignoring case. Backspace removes the last character; Escape clears the search, or closes the window when the search is already empty. A tick survives the search: a ticked plugin the search hides stays ticked and is installed with the others. The list scrolls with the mouse wheel, the arrow keys, Page Up, Page Down, Home and End.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 At the bottom, {\b Install N plugins} \u8212- shown only when at least one plugin is ticked, and counting every ticked plugin \u8212- closes the window and installs them ({\i Installing plugins} below); {\b Close} closes it and installs nothing. When the ticked plugins include any marked {\i unmanaged installer}, the same one confirmation as in the summary window comes first; cancelling it keeps the window open with your ticks.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 While an install is running\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 One install runs at a time, wherever it was started. While one is running, the action opens no window and says "An install is already running. Try again when it has finished."; pressing {\b Install N plugins} while an install started elsewhere is running shows the same message and keeps the window open with your ticks.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 When the server cannot be reached\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The browser fetches the catalogue as a check does. When it uses the cached copy, a banner under the heading says so and why: "The server catalogue could not be used, so the cached one was." followed by the reason. With no server and no cached copy, no window opens, and a message says "No catalogue is available, so nothing can be listed." with the reason. A catalogue that lists no plugins opens no window either: "The catalogue lists no plugins."\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Installing plugins\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 When you agree to install the plugins the summary offers, the manager downloads and installs them in the background, so REAPER stays usable while they install. One install runs at a time, and a failure stops only the plugin it hit; the others go on.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 When the plugins to install include any marked {\i unmanaged installer}, {\b Install N plugins} first asks for confirmation, in one prompt naming each of them. Continue only if you trust the server's maintainer: their script runs on your machine with the rights stated in {\i The summary window} above. Cancelling installs nothing, not even the other plugins, and leaves the summary window open.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 When you agree to install the plugins the summary offers, or the ones you ticked in the catalogue window, the manager downloads and installs them in the background, so REAPER stays usable while they install. One install runs at a time, and a failure stops only the plugin it hit; the others go on.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 When the plugins to install include any marked {\i unmanaged installer}, {\b Install N plugins} first asks for confirmation, in one prompt naming each of them. Continue only if you trust the server's maintainer: their script runs on your machine with the rights stated in {\i The summary window} above. Cancelling installs nothing, not even the other plugins, and leaves the summary window or the catalogue window open.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The progress window\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 A progress window lists every plugin of the run with where it stands: queued, downloading, verifying, installing, installed (in green) or failed (in red, with the reason underneath). Closing the window does not stop the install: when the run ends, the window opens again with the final summary. When nothing is heard from the installer 30 seconds after the start, every plugin fails with "the installer helper did not start".\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 One administrator prompt\par}
@@ -124,7 +154,7 @@ reapack.com
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The final summary\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 When the run ends, the window shows how many plugins were installed and how many failed, with the reason for each failure. Closing it hands over to licence activation for the installed plugins that need it ({\i Activating licences} below).\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Restart and reopen\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 REAPER detects new plugins only when it starts. When at least one plugin was installed, the manager asks you to restart REAPER. After the restart, the project you were working on reopens on its own once REAPER has finished starting, unless it is already open or its file is gone. If an installed plugin still does not appear, rescan in REAPER: {\i Preferences > Plug-ins > VST > Re-scan}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 REAPER detects new plugins only when it starts. When at least one plugin was installed, the manager asks you to restart REAPER. After the restart of a run started from the summary window, the project you were working on reopens on its own once REAPER has finished starting, unless it is already open or its file is gone. A run started from the catalogue window reopens no project. If an installed plugin still does not appear, rescan in REAPER: {\i Preferences > Plug-ins > VST > Re-scan}.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Activating licences\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Every plugin is activated with your own licence and your own vendor account. The group's server holds installers only, never licence keys, serials or vendor accounts, and the manager never shares, uploads or bypasses an activation: it shows you how each plugin is activated, opens the vendor's app or page, and remembers what you have not confirmed yet. It cannot check that a plugin is really activated, so it takes your word for it.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The activation window\par}
