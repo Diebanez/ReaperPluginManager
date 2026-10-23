@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 45
+Last task number: 47
 
 ---
 
@@ -448,5 +448,25 @@ Target: claude
 Files: server/README.md
 Preconditions: 44
 Feature: plugin-catalogue
+
+---
+
+## 46. Windows helper script installers
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-install.ps1
+Preconditions: 24, 44
+Feature: install-helper-windows
+
+---
+
+## 47. Update documentation for feature `install-helper-windows`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 46
+Feature: install-helper-windows
 
 ---
