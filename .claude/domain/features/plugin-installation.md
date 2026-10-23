@@ -87,13 +87,17 @@ processes.
 - **Script installers** (`type` `script`, schema in
   [plugin-catalogue.md](./plugin-catalogue.md#data-and-state)) — the zip is
   downloaded and verified as usual, unpacked into the work folder, and the
-  platform's script (`install.ps1` or `install.sh`) runs from the unpacked
-  folder with the administrator rights the run already has, under the
-  `ITEM <id> install` step; the run's elevation prompt and the status-file
-  protocol are unchanged. The script receives `RPM_PAYLOAD_DIR` (the
-  unpacked folder), `RPM_VST3_DIR`, `RPM_CLAP_DIR`, `RPM_VST2_DIR` (empty
-  when the helper has no VST2 folder, i.e. `vst2_dir` is not set) and, on
-  macOS, `RPM_AU_DIR`. Exit code 0 → `OK <id>`; any other exit code →
+  platform's script runs from the unpacked folder under the `ITEM <id>
+  install` step, with the status-file protocol unchanged. On Windows
+  `install.ps1` runs inside the elevated helper with the administrator
+  rights the run already has, because the plugin folders under Common Files
+  need them. On macOS `install.sh` runs as the member, outside the
+  administrator prompt, so it writes only where the member can
+  ([install-helper-macos.md](./install-helper-macos.md#architecture)). The
+  script receives `RPM_PAYLOAD_DIR` (the unpacked folder), `RPM_VST3_DIR`,
+  `RPM_CLAP_DIR`, `RPM_VST2_DIR` (empty when the helper has no VST2 folder,
+  i.e. `vst2_dir` is not set) and, on macOS, `RPM_AU_DIR` — the helper's
+  plugin folders, on macOS those under the member's plugins root. Exit code 0 → `OK <id>`; any other exit code →
   `FAIL <id>` with the script's last non-empty output line, or, when it
   printed nothing, `install script exited with code <n>`. No time limit.
 - **End** — `DONE <ok> <failed>`, then delete the credentials file.
