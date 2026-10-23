@@ -78,7 +78,8 @@ of its own beyond the run.
 ## Interfaces and contracts
 
 - Invoked per the helper contract; parameters above.
-- Source constraints, for this helper and `rpm-run-hidden.ps1`: ASCII only,
+- Source constraints, for this helper, `rpm-restart.ps1` and
+  `rpm-run-hidden.ps1`: ASCII only,
   messages included; runs under `powershell.exe` 5.1 even when the parent
   environment carries a PowerShell 7 module path (no reliance on
   `Get-FileHash` or `Expand-Archive`).

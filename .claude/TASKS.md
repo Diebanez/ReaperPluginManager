@@ -623,7 +623,7 @@ Feature: plugin-installation
 
 ## 63. Restart helpers
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-restart.ps1, Scripts/ReaperPluginManager/helpers/rpm-restart.sh, Scripts/ReaperPluginManager/RPM_Setup.lua, CLAUDE.md
 Preconditions: none

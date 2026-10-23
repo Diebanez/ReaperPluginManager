@@ -26,6 +26,8 @@
 --   helpers/rpm-secret.ps1
 --   helpers/rpm-secret.sh
 --   helpers/rpm-run-hidden.ps1
+--   helpers/rpm-restart.ps1
+--   helpers/rpm-restart.sh
 
 -- RPM_Setup.lua: the "Script: RPM_Setup.lua" action. Collects the server
 -- connection in one dialog, validates it, saves the settings and the server
