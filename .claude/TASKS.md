@@ -553,7 +553,7 @@ Feature: catalogue-browser
 
 ## 56. Shared unmanaged confirmation and list primitives
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: none

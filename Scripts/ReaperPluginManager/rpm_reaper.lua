@@ -2487,17 +2487,6 @@ local function summary_heading(result)
   return ("%s: %d of %d plugins not installed"):format(name, missing, result.total)
 end
 
--- The banner line when the server catalogue was not used, or nil.
-local function summary_banner(result)
-  local reason = result.reason and one_line(result.reason) or "no reason was given"
-  if result.source == "cache" then
-    return "The server catalogue could not be used, so the cached one was. " .. reason
-  elseif result.source == "none" then
-    return "No catalogue is available, so nothing can be installed. " .. reason
-  end
-  return nil
-end
-
 -- The scrolling rows of `groups` wrapped to `width`, each { text, indent,
 -- header, entry }: a group's title, then its items, a blank row between
 -- groups. `entry` marks the first row of an activation-pending item, which
@@ -2557,6 +2546,70 @@ local function draw_button(r, hover)
   gfx.drawstr(r.label)
 end
 
+-- List primitives shared by the scrollable windows, beside `wrap`,
+-- `draw_lines`, `hit_rect` and `draw_button`.
+
+-- Draws, from `top` and `width` wide in the current font, the banner stating
+-- that the catalogue fetched from `source` is not the server's, and why
+-- (`reason`). Returns the y below it, `top` itself when the server catalogue
+-- was used.
+local function draw_catalogue_banner(source, reason, width, top)
+  local why = reason and one_line(reason) or "no reason was given"
+  local banner
+  if source == "cache" then
+    banner = "The server catalogue could not be used, so the cached one was. " .. why
+  elseif source == "none" then
+    banner = "No catalogue is available, so nothing can be installed. " .. why
+  end
+  if banner then
+    gfx.set(0.95, 0.75, 0.35)
+    top = draw_lines(wrap(banner, width), top) + 4
+  end
+  return top
+end
+
+-- Moves `state.scroll` by this cycle's key `c` (a `gfx.getchar` code) and the
+-- mouse wheel: a row per arrow key, `state.page` rows less one per page key,
+-- to either end on Home and End, three rows per wheel notch. The drawing
+-- clamps the result.
+local function scroll_input(state, c)
+  local page = math.max(1, (state.page or 1) - 1)
+  if c == KEY_UP then
+    state.scroll = state.scroll - 1
+  elseif c == KEY_DOWN then
+    state.scroll = state.scroll + 1
+  elseif c == KEY_PGUP then
+    state.scroll = state.scroll - page
+  elseif c == KEY_PGDN then
+    state.scroll = state.scroll + page
+  elseif c == KEY_HOME then
+    state.scroll = 0
+  elseif c == KEY_END then
+    state.scroll = math.huge
+  end
+  if gfx.mouse_wheel ~= 0 then
+    state.scroll = state.scroll - (gfx.mouse_wheel > 0 and 3 or -3)
+    gfx.mouse_wheel = 0
+  end
+end
+
+-- Draws the scrollbar at `x` of a list of `total` rows `lh` high whose
+-- `visible` rows start at `top`, scrolled `scroll` rows down; nothing when
+-- every row fits.
+local function draw_scrollbar(x, top, lh, visible, total, scroll)
+  local max_scroll = math.max(0, total - visible)
+  if max_scroll == 0 then
+    return
+  end
+  local track_h = visible * lh
+  local thumb_h = math.max(20, track_h * visible / total)
+  local thumb_y = top + (track_h - thumb_h) * scroll / max_scroll
+  gfx.set(0.22, 0.22, 0.24)
+  gfx.rect(x, top, SCROLLBAR_W, track_h, 1)
+  gfx.set(0.45, 0.45, 0.48)
+  gfx.rect(x, thumb_y, SCROLLBAR_W, thumb_h, 1)
+end
+
 -- Draws the window and returns its clickable rectangles: the bottom buttons
 -- and the Activate buttons of the visible rows.
 local function draw_summary(state)
@@ -2568,12 +2621,7 @@ local function draw_summary(state)
   gfx.set(0.92, 0.92, 0.94)
   local top = draw_lines(wrap(summary_heading(state.result), width), PAD) + 4
   gfx.setfont(1, "Arial", 15)
-  local banner = summary_banner(state.result)
-  if banner then
-    gfx.set(0.95, 0.75, 0.35)
-    top = draw_lines(wrap(banner, width), top) + 4
-  end
-  top = top + 4
+  top = draw_catalogue_banner(state.result.source, state.result.reason, width, top) + 4
 
   local rects = summary_buttons(state)
   local bottom = rects[1].y - 8
@@ -2611,16 +2659,7 @@ local function draw_summary(state)
     end
   end
 
-  if max_scroll > 0 then
-    local track_h = visible * lh
-    local thumb_h = math.max(20, track_h * visible / #rows)
-    local thumb_y = top + (track_h - thumb_h) * state.scroll / max_scroll
-    local x = PAD + width - SCROLLBAR_W
-    gfx.set(0.22, 0.22, 0.24)
-    gfx.rect(x, top, SCROLLBAR_W, track_h, 1)
-    gfx.set(0.45, 0.45, 0.48)
-    gfx.rect(x, thumb_y, SCROLLBAR_W, thumb_h, 1)
-  end
+  draw_scrollbar(PAD + width - SCROLLBAR_W, top, lh, visible, #rows, state.scroll)
 
   for _, r in ipairs(rects) do
     if not r.entry then
@@ -2678,20 +2717,21 @@ local UNMANAGED_RIGHTS = {
   macos = "on this Mac with your user's rights",
 }
 
--- True when the installable entries of `result` may be installed: at once
--- when none has an unmanaged installer on its platform, otherwise once the
--- member confirms one prompt naming every such plugin.
-local function confirm_unmanaged(result)
+-- True when `items`, the entries to install (each carrying `entry`), may be
+-- installed on `platform`: at once when none has an unmanaged installer
+-- there, otherwise once the member confirms one prompt, titled `title`,
+-- naming every such plugin.
+local function confirm_unmanaged(items, platform, title)
   local names = {}
-  for _, it in ipairs(result.groups.installable) do
-    if core.catalogue.unmanaged(it.entry, result.platform) then
+  for _, it in ipairs(items) do
+    if core.catalogue.unmanaged(it.entry, platform) then
       names[#names + 1] = entry_label(it.entry)
     end
   end
   if #names == 0 then
     return true
   end
-  local rights = UNMANAGED_RIGHTS[result.platform] or "on this computer"
+  local rights = UNMANAGED_RIGHTS[platform] or "on this computer"
   local text
   if #names == 1 then
     text = ("%s uses an unmanaged installer: a script from your group's server that runs %s."):format(names[1], rights)
@@ -2700,7 +2740,7 @@ local function confirm_unmanaged(result)
       :format(rights, "  " .. table.concat(names, "\n  "))
   end
   text = text .. "\n\nContinue only if you trust the server's maintainer."
-  return reaper.ShowMessageBox(text, SUMMARY_TITLE, 1) == 1
+  return reaper.ShowMessageBox(text, title, 1) == 1
 end
 
 -- Acts on a clicked rectangle. Returns false when the summary's loop ends:
@@ -2712,11 +2752,12 @@ local function summary_click(state, r)
     close_summary(state)
     return false
   elseif r.key == "install" then
-    if not confirm_unmanaged(state.result) then
+    local installable = state.result.groups.installable
+    if not confirm_unmanaged(installable, state.result.platform, SUMMARY_TITLE) then
       return true
     end
     close_summary(state)
-    local ok, err = M.install.start(state.result.groups.installable)
+    local ok, err = M.install.start(installable)
     if not ok then
       reaper.ShowMessageBox(err, SUMMARY_TITLE, 0)
     end
@@ -2743,24 +2784,7 @@ local function summary_cycle(state)
     close_summary(state)
     return false
   end
-  local page = math.max(1, (state.page or 1) - 1)
-  if c == KEY_UP then
-    state.scroll = state.scroll - 1
-  elseif c == KEY_DOWN then
-    state.scroll = state.scroll + 1
-  elseif c == KEY_PGUP then
-    state.scroll = state.scroll - page
-  elseif c == KEY_PGDN then
-    state.scroll = state.scroll + page
-  elseif c == KEY_HOME then
-    state.scroll = 0
-  elseif c == KEY_END then
-    state.scroll = math.huge
-  end
-  if gfx.mouse_wheel ~= 0 then
-    state.scroll = state.scroll - (gfx.mouse_wheel > 0 and 3 or -3)
-    gfx.mouse_wheel = 0
-  end
+  scroll_input(state, c)
 
   local down = gfx.mouse_cap & 1 == 1
   if down and not state.was_down then
