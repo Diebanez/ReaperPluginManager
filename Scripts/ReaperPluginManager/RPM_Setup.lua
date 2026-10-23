@@ -1,10 +1,10 @@
 -- @description ReaperPluginManager
 -- @author Diebanez
--- @version 1.2.0
+-- @version 1.3.0
 -- @changelog
---   New action Script: RPM_Browse.lua: browse the group's catalogue and
---   install plugins without a project needing them.
---   Only one install runs at a time across all RPM actions.
+--   No restart needed after an install: RPM opens the FX browser, asks you
+--   to choose "Scan for new plugins", and offers to reload the project once
+--   it sees the new plugins. A restart remains the fallback.
 -- @about
 --   Lists the plugins a REAPER project uses that are not installed, installs
 --   the ones a group's private catalogue offers, and guides licence
