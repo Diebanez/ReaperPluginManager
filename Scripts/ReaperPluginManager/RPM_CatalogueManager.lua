@@ -1,7 +1,7 @@
 -- @noindex
 
--- RPM_CatalogueManager.lua: the "ReaperPluginManager: Catalogue management"
--- action. The maintainer's ReaImGui window over the local catalogue draft:
+-- RPM_CatalogueManager.lua: the "Script: RPM_CatalogueManager.lua" action.
+-- The maintainer's ReaImGui window over the local catalogue draft:
 -- every draft entry, what changed since the catalogue the draft started from,
 -- the validation problems that block publishing, the three ways to add an
 -- entry (from REAPER's installed plugins, by hand, or from a draft entry file),

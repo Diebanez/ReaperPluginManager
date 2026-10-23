@@ -1,6 +1,6 @@
 -- @noindex
 
--- RPM_CheckProject.lua: the "ReaperPluginManager: Check project" action.
+-- RPM_CheckProject.lua: the "Script: RPM_CheckProject.lua" action.
 -- Checks the current project as saved on disk and always shows a result: the
 -- summary window, "All N plugins are installed", or why it could not check.
 

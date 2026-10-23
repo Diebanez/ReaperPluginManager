@@ -20,7 +20,7 @@
 --   helpers/rpm-secret.sh
 --   helpers/rpm-run-hidden.ps1
 
--- RPM_Setup.lua: the "ReaperPluginManager: Setup" action. Collects the server
+-- RPM_Setup.lua: the "Script: RPM_Setup.lua" action. Collects the server
 -- connection in one dialog, validates it, saves the settings and the server
 -- credential, registers the tool's actions, installs the startup hook, starts
 -- the watcher and tests the connection.

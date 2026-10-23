@@ -127,7 +127,7 @@ recognised too. Plugins added since the last save are not part of the check.
 ### When a project is checked
 
 While automatic checking is on (`auto` in the `[check]` section of the
-settings), the *ReaperPluginManager: Watcher* action checks every saved
+settings), the *Script: RPM_Watcher.lua* action checks every saved
 project in the background each time it is opened, in a new tab or in place
 of another project, about a second after it has loaded. Switching between
 project tabs is not an opening and checks nothing; closing a project and
@@ -138,8 +138,8 @@ window opens. While plugins are being installed, the projects you open are
 checked once the install has ended. A check that fails writes the error to
 the REAPER console and does not stop the watcher.
 
-The *ReaperPluginManager: Check project* action checks the current project
-on demand and always answers: the summary window, or a message — "All N
+The *Script: RPM_CheckProject.lua* action checks the current project on
+demand and always answers: the summary window, or a message — "All N
 plugins are installed.", "The project uses no plugins.", "Save the project
 first." for a project never saved, or that the project file cannot be read.
 When the only missing plugins are ones not in the catalogue and that group is

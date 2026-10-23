@@ -34,10 +34,10 @@ create folders.
 
 ## Curating the catalogue
 
-You shape the catalogue with the **ReaperPluginManager: Catalogue
-management** action rather than by editing `manifest.json`: inside REAPER the
-manager reads how each installed plugin names itself in projects, so it fills
-in the match strings for you.
+You shape the catalogue with the **Script: RPM_CatalogueManager.lua** action
+rather than by editing `manifest.json`: inside REAPER the manager reads how
+each installed plugin names itself in projects, so it fills in the match
+strings for you.
 
 ### ReaImGui
 
