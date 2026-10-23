@@ -643,7 +643,7 @@ Feature: plugin-installation
 
 ## 65. Update documentation for feature `plugin-installation`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md, server/README.md, CLAUDE.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/catalogue-browser.md
 Preconditions: 63, 64

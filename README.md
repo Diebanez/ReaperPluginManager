@@ -245,7 +245,7 @@ keys, Page Up, Page Down, Home and End.
 
 At the bottom, **Install N plugins** — shown only when at least one plugin is
 ticked, and counting every ticked plugin — closes the window and installs
-them, ending with the scan that makes them usable without a restart
+them, ending with the offer to restart REAPER so it detects them
 (*Installing plugins* below); **Close** closes it and installs nothing.
 When the ticked plugins include any marked *unmanaged installer*, the same
 one confirmation as in the summary window comes first; cancelling it keeps
@@ -308,34 +308,31 @@ installs:
 When the run ends, the window shows how many plugins were installed and how
 many failed, with the reason for each failure. Closing it hands over to
 licence activation for the installed plugins that need it (*Activating
-licences* below).
+licences* below), then to the offer to restart REAPER (*Restart and reopen*
+below). When nothing was installed, the run ends there.
 
-### Scan for the new plugins, or restart
+### Restart and reopen
 
-When at least one plugin was installed, after the activation window when
-there is one, REAPER's FX browser opens beside a window that lists the
-installed plugins.
-In the FX browser, choose **Scan for new plugins** — in its FX menu, or by
-right-clicking its filter field. About once a second the window checks what
-REAPER lists, and marks each plugin *detected*, in green, once REAPER sees
-it.
+REAPER detects new plugins only when it starts. When at least one plugin was
+installed, after the activation window when there is one, the manager asks
+whether to restart REAPER now:
 
-When every plugin is detected, the window says they are ready to use. For a
-run started from the summary window it offers **Reload project**, which opens
-the project you were working on again so the new plugins load in it (REAPER
-asks first whether to save unsaved changes), and **Not now**, which leaves the
-project as it is; closing the window, or Escape, is Not now. For a run
-started from the catalogue window it says the plugins are ready, and
-**Close** ends the run.
+- **Yes** — REAPER quits, asking first whether to save unsaved changes as on
+  any quit, and starts again on its own. Once it has finished starting, the
+  projects that were open reopen, each in its own tab, with the one you were
+  working on selected. A project that was never saved has no file and does
+  not reopen, nor does one whose file is gone. If you cancel the quit, REAPER
+  keeps running and the projects reopen at its next start. If REAPER cannot
+  be restarted, a message says so and REAPER keeps running: restart it
+  yourself, and the projects reopen then.
+- **No** — a message reminds you to restart REAPER yourself. For an install
+  started from the summary window, the project it was checking reopens on
+  its own after that restart, once REAPER has finished starting, unless it
+  is already open or its file is gone. An install started from the catalogue
+  window reopens no project after a restart you make yourself.
 
-When you close the window, or press Escape, while a plugin is still waiting,
-or 3 minutes pass without every plugin detected, the manager asks you to
-restart REAPER instead: REAPER detects new plugins when it starts. After the
-restart of a run started from the summary window, the project you were
-working on reopens on its own once REAPER has finished starting, unless it is
-already open or its file is gone. A run started from the catalogue window
-reopens no project. If an installed plugin still does not appear after the
-restart, rescan in REAPER: *Preferences > Plug-ins > VST > Re-scan*.
+If an installed plugin still does not appear after the restart, rescan in
+REAPER: *Preferences > Plug-ins > VST > Re-scan*.
 
 ## Activating licences
 
@@ -367,8 +364,8 @@ instructions, with three buttons:
   and the next step opens.
 
 Closing the window, or pressing Escape, leaves every step you have not marked
-Done pending. When the window closes, the manager goes on to the scan for the
-new plugins (*Scan for the new plugins, or restart* above).
+Done pending. When the window closes, the manager offers to restart REAPER
+(*Restart and reopen* above).
 
 ### Activation pending
 

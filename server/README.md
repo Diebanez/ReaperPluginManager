@@ -390,7 +390,8 @@ Any type other than these four fails with "installer type not supported on
 Windows".
 
 An `exe` or `msi` installer succeeds when it exits with code `0`, or with
-`3010`, which asks for a restart the manager does not perform. Any other code
+`3010`, which asks for a restart of the computer the manager does not
+perform. Any other code
 fails with "installer exited with code <n>". A `script` installer succeeds
 only when its `install.ps1` exits with code `0`.
 

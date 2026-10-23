@@ -90,8 +90,8 @@ no queue or scheduler beyond these.
 - **REAPER start ↔ tool** — a marked block in `Scripts/__startup.lua` that
   launches the watcher; REAPER ExtStates carry the watcher heartbeat, the
   install heartbeat — which keeps one install running across every action,
-  each action running in its own Lua state — and the project to reopen after
-  a restart.
+  each action running in its own Lua state — and the projects to reopen
+  after a restart.
 
 ## Cross-cutting concerns
 

@@ -66,9 +66,9 @@ processes.
   REAPER detects new plugins only when it starts. Restart REAPER now? The
   projects open now reopen after the restart." The run ends with the answer.
   - **Yes** — the reopen record is written with every open project tab that
-    has a file, in tab order with the active one last; the restart helper is
-    launched detached with REAPER's executable; then the main action "File:
-    Quit REAPER" runs. REAPER asks to save unsaved changes as on any quit; a
+    has a file, in tab order with the active one last, or deleted when no
+    tab has one; the restart helper is launched detached with REAPER's
+    executable; then the main action "File: Quit REAPER" runs. REAPER asks to save unsaved changes as on any quit; a
     project never saved has no file and is not reopened. When the member
     cancels the quit, REAPER keeps running, the helper gives up, and the
     record waits for the next start.
@@ -82,17 +82,21 @@ processes.
 - **Restart helper** — a small platform script, beside the install helpers,
   started like them without waiting (on Windows hidden through PowerShell,
   on macOS `/bin/bash … >/dev/null 2>&1 &` under `nohup`), so it outlives
-  REAPER. It polls every 0.5 s until no process runs REAPER's executable,
-  then starts REAPER again (Windows: the `reaper.exe` beside
-  `GetExePath()`; macOS: `open` on the REAPER app bundle). When REAPER is
-  still running after 60 s, it exits without starting anything.
+  REAPER. It polls every 0.5 s until no process runs REAPER's executable
+  (Windows: the `reaper.exe` in the folder `GetExePath()` returns, compared
+  by full path; macOS: any executable inside the app bundle that contains
+  `GetExePath()`), so another REAPER installation running at the same time
+  is ignored, then starts REAPER again (Windows: that `reaper.exe`, from its
+  own folder; macOS: `open` on the bundle). When REAPER is still running
+  after 60 s, it exits without starting anything.
 - **Reopen after restart** — called by the watcher at start: when a reopen
   record exists, it waits 2 s (REAPER finishes loading its own startup
   project), deletes the record, and opens each recorded project whose file
-  exists and that is not already open: the first into the current tab when
-  that tab is an empty project that was never saved, the others into new
-  tabs ("File: New project tab", then `Main_openProject`). The recorded
-  active project ends as the selected tab.
+  exists and that is not already open: into the current tab when that tab
+  has no file and no unsaved changes, as REAPER's empty startup project
+  does, otherwise into a new tab ("File: New project tab", then
+  `Main_openProject`). The recorded active project ends as the selected
+  tab.
 
 ### Helper contract
 
@@ -148,10 +152,14 @@ processes.
   `core.install.parse_status` keeps a `NOTE` on its item as `note` without
   changing the item's state. Deleted before every run.
 - **Work folder** (`work/`) — downloads, per plugin id.
-- **Reopen record** — persistent ExtState `ReaperPluginManager/reopen` = one
-  project path per line, in the order to open them, the one to leave
-  selected last; a single path is a one-line record. Written by the restart
-  offer, deleted by the reopen after the restart.
+- **Reopen record** — persistent ExtState `ReaperPluginManager/reopen` = the
+  project paths in the order to open them, the one to leave selected last,
+  on one line: REAPER keeps persistent ExtStates in `reaper-extstate.ini`,
+  where a newline would cut the value. Each path has `%` escaped as `%25`,
+  and the paths are joined by `%0A` (`core.install.encode_reopen`);
+  `core.install.decode_reopen` also splits on raw newlines, so a record
+  written one path per line still reads. Written by the restart offer,
+  deleted by the reopen after the restart.
 - **Install heartbeat** — non-persistent ExtState
   `ReaperPluginManager/install_heartbeat` = the time of the running install's
   last defer cycle, written each cycle from `start` until the run ends and

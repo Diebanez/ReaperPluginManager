@@ -140,8 +140,9 @@ copied:
   scroll position.
 - Non-persistent ExtState `ReaperPluginManager/install_heartbeat` — the
   heartbeat time of a running install, owned by `plugin-installation`.
-- Nothing persisted by the browser; no reopen record is ever written for a
-  browser run.
+- Nothing persisted by the browser. A browser run writes a reopen record
+  only when the member accepts the restart, with the projects open then
+  (`plugin-installation`); a declined restart writes none.
 
 ## Interfaces and contracts
 
