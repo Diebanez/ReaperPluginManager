@@ -433,7 +433,7 @@ Preconditions: 42
 
 ## 44. Script installer type and the unmanaged-installer check
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua, server/manifest.example.json
 Preconditions: 6

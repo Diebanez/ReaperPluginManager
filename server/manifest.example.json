@@ -45,6 +45,26 @@
           "dest": "vst3"
         }
       }
+    },
+    {
+      "id": "polarity-the-cue",
+      "name": "The Cue",
+      "vendor": "Polarity Audio",
+      "note": "VST3 with its instruments folder",
+      "match": [
+        "The Cue",
+        "The Cue.vst3"
+      ],
+      "installers": {
+        "macos": {
+          "file": "polarity/TheCue-mac.zip",
+          "type": "script"
+        },
+        "windows": {
+          "file": "polarity/TheCue-win.zip",
+          "type": "script"
+        }
+      }
     }
   ],
   "version": 1

@@ -943,10 +943,11 @@ M.catalogue = {}
 M.catalogue.VERSION = 1
 
 -- The installer types of each platform; a missing `type` is derived from the
--- file extension when it names one of them.
+-- file extension when it names one of them other than `script`, which is
+-- always written out.
 local INSTALLER_TYPES = {
-  windows = { exe = true, msi = true, zip = true },
-  macos = { pkg = true, dmg = true, zip = true },
+  windows = { exe = true, msi = true, zip = true, script = true },
+  macos = { pkg = true, dmg = true, zip = true, script = true },
 }
 
 -- True for a JSON array: a table marked json.array, or an unmarked one whose
@@ -998,7 +999,7 @@ local function check_installer(inst, platform)
   if not has_text(inst.type) then
     local ext = inst.file:match("%.(%w+)$")
     ext = ext and ext:lower()
-    inst.type = INSTALLER_TYPES[platform][ext] and ext or nil
+    inst.type = ext ~= "script" and INSTALLER_TYPES[platform][ext] and ext or nil
   end
   return inst
 end
@@ -1122,6 +1123,17 @@ function M.catalogue.read_cache(text, url)
     return nil
   end
   return catalogue, warnings
+end
+
+-- True when the catalogue entry `entry` has an installer for `platform`
+-- (`windows` or `macos`) of type `script`: an unmanaged installer, a script
+-- from the server run with administrator rights on Windows and with the
+-- member's own rights on macOS. False for any other type, an absent installer
+-- or a malformed entry. Never raises.
+function M.catalogue.unmanaged(entry, platform)
+  local installers = is_json_object(entry) and entry.installers
+  local inst = is_json_object(installers) and installers[platform]
+  return is_json_object(inst) and has_text(inst.file) and inst.type == "script"
 end
 
 -- Builds the match index of a validated catalogue: `norm(m)` for every match
