@@ -1784,7 +1784,7 @@ end
 -- Called by plugin-installation after a run with the entries it installed:
 -- records every entry whose activation method is not `none` as pending, then
 -- opens the walk-through for them. `on_close` runs when the window closes,
--- so installation can then open its guided plugin scan; with nothing to
+-- so installation can then offer to restart REAPER; with nothing to
 -- activate it runs at once. Done clears a step's entries from the pending
 -- record and, for a `serial` entry with no saved serial, offers to save one;
 -- Later and closing the window leave them pending. Activate also copies a
@@ -1820,9 +1820,8 @@ end
 ---------------------------------------------------------------------------
 -- Install run: the job for the platform helper, its detached launch, the
 -- progress window that follows the status file, the summary, the hand-off
--- to licence activation, the guided plugin scan with its offer to reload
--- the project, and the project reopened after REAPER restarts when the scan
--- did not detect the new plugins.
+-- to licence activation, the offer to restart REAPER so it detects the new
+-- plugins, and the projects reopened after the restart.
 ---------------------------------------------------------------------------
 
 M.install = {}
@@ -1850,9 +1849,8 @@ local STATE_TEXT = {
 
 -- This script's run in progress, or nil: { items, status_path, netrc,
 -- reopen, project, launched, heard, finished, ok, failed, note, window,
--- scroll, pressed, was_down, recorded, scan }. Each item is { id, name,
--- entry, installer, state, message }. `recorded` is true once the run wrote
--- the reopen record; `scan` is the guided scan's state once it opened.
+-- scroll, pressed, was_down }. Each item is { id, name, entry, installer,
+-- state, message }.
 local install = nil
 
 -- Publishes `state` as the running install to every script: writes the
@@ -2075,229 +2073,104 @@ local function open_install_window(state)
   state.pressed, state.was_down = nil, false
 end
 
--- The guided scan, after licence activation. Its helpers are scoped to this
--- block, which only defines `open_scan`, to stay within Lua's limit of 200
--- locals in the module's main chunk.
-local open_scan
+-- The restart offer, after licence activation. Its helpers are scoped to
+-- this block, which only defines `offer_restart`, to stay within Lua's limit
+-- of 200 locals in the module's main chunk.
+local offer_restart
 do
-  local SCAN_TITLE = "ReaperPluginManager - Detecting new plugins"
-  local SCAN_W = 520
-  local SCAN_POLL = 1
-  local SCAN_TIMEOUT = 180
-  local FX_BROWSER_ACTION = 40271 -- View: Show FX browser window
-  local SCAN_HINT = "In the FX browser, choose \"Scan for new plugins\": in its FX menu, "
-    .. "or by right-clicking its filter field. Each plugin below is marked detected once REAPER sees it."
+  local QUIT_ACTION = 40004 -- File: Quit REAPER
+  local RESTART_FAILED = "REAPER could not be restarted. Restart it yourself: it detects the new plugins "
+    .. "at startup and the projects open now reopen."
 
-  -- Re-reads REAPER's installed plugins and marks detected each installed
-  -- item whose entry `core.present_entries` finds through the scan's match
-  -- index, built from the run's installed entries only. Once every item is
-  -- detected the scan is ready and the run's reopen record is deleted.
-  local function poll_scan(state)
-    local scan = state.scan
-    scan.polled = reaper.time_precise()
-    local present = core.present_entries(M.check.installed(), scan.lookup)
-    local all = true
-    for _, item in ipairs(scan.items) do
-      if present[item.entry] then
-        scan.detected[item.entry] = true
-      elseif not scan.detected[item.entry] then
-        all = false
+  -- The file paths of the open project tabs that have one, in tab order with
+  -- the active project last.
+  local function open_project_paths()
+    local active = reaper.EnumProjects(-1)
+    local paths, last = {}, nil
+    local i = 0
+    while true do
+      local proj, path = reaper.EnumProjects(i)
+      if not proj then
+        break
       end
-    end
-    if all then
-      scan.ready = true
-      if state.recorded then
-        reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
-      end
-    end
-  end
-
-  -- One line per installed plugin, waiting or detected, wrapped to `width`.
-  local function scan_rows(scan, width)
-    local rows = {}
-    for _, item in ipairs(scan.items) do
-      local detected = scan.detected[item.entry]
-      local text = item.name .. " — " .. (detected and "detected" or "waiting for the scan")
-      for _, line in ipairs(wrap(text, width)) do
-        if detected then
-          rows[#rows + 1] = { line, 0.45, 0.8, 0.45, 0 }
+      if path and path ~= "" then
+        if proj == active then
+          last = path
         else
-          rows[#rows + 1] = { line, 0.85, 0.85, 0.87, 0 }
+          paths[#paths + 1] = path
         end
       end
+      i = i + 1
     end
-    return rows
+    paths[#paths + 1] = last
+    return paths
   end
 
-  -- The scan window's buttons, right-aligned, in the current font: none
-  -- while an item is waiting; once ready, "Reload project" and "Not now" for
-  -- a run with a project to reload, "Close" otherwise.
-  local function scan_buttons(scan)
-    if not scan.ready then
-      return {}
-    end
-    local labels = scan.reload and { "Reload project", "Not now" } or { "Close" }
-    local rects, x = {}, gfx.w - PAD
-    for i = #labels, 1, -1 do
-      local w = math.max(BUTTON_W, gfx.measurestr(labels[i]) + 24)
-      x = x - w
-      table.insert(rects, 1, { label = labels[i], x = x, y = gfx.h - PAD - BUTTON_H, w = w, h = BUTTON_H })
-      x = x - 8
-    end
-    return rects
-  end
-
-  local function draw_scan(scan, buttons)
-    local width = gfx.w - 2 * PAD
-    gfx.set(0.15, 0.15, 0.16)
-    gfx.rect(0, 0, gfx.w, gfx.h, 1)
-
-    gfx.setfont(2, "Arial", 18, string.byte("b"))
-    gfx.set(0.92, 0.92, 0.94)
-    local heading = scan.ready and "The new plugins are ready to use" or "Scan for the new plugins"
-    local top = draw_lines(wrap(heading, width), PAD) + 4
-    gfx.setfont(1, "Arial", 15)
-    local text = SCAN_HINT
-    if scan.ready then
-      text = scan.reload and "REAPER detected every new plugin. Reload the project so they load in it."
-        or "REAPER detected every new plugin."
-    end
-    gfx.set(0.8, 0.8, 0.82)
-    top = draw_lines(wrap(text, width), top) + 8
-
-    local _, lh = gfx.measurestr("Ag")
-    lh = lh + 2
-    local bottom
-    if #buttons > 0 then
-      bottom = buttons[1].y - 8
-    else
-      local note = wrap("Closing this window falls back to restarting REAPER.", width)
-      bottom = gfx.h - PAD - #note * lh - 4
-      gfx.set(0.6, 0.6, 0.62)
-      draw_lines(note, bottom + 4)
-    end
-
-    draw_rows(scan, scan_rows(scan, width), top, bottom)
-    draw_buttons(buttons)
-    gfx.update()
-  end
-
-  -- Closes the scan window and ends the run. `restart` first shows the
-  -- restart message, the reopen record kept; `reload` then opens the
-  -- recorded project, once the run has ended, when its file still exists;
-  -- `dismiss` only ends the run.
-  local function end_scan(state, outcome)
-    gfx.quit()
-    if outcome == "restart" then
-      reaper.ShowMessageBox(state.reopen and RESTART_MESSAGE or RESTART_MESSAGE_NO_REOPEN, INSTALL_TITLE, 0)
-    end
-    end_run(state)
-    if outcome == "reload" and state.project ~= "" and file_exists(state.project) then
-      reaper.Main_openProject(state.project)
-    end
-  end
-
-  -- One defer cycle of the guided scan: closing the window (close box or
-  -- Escape) answers "Not now" once ready and gives way to the restart
-  -- message before; about once a second the installed plugins are re-read;
-  -- 3 minutes with an item still waiting give way to the restart message.
-  -- Returns false once the run has ended.
-  local function scan_cycle(state)
-    local scan = state.scan
-    local c = gfx.getchar()
-    if c < 0 or c == 27 then
-      end_scan(state, scan.ready and "dismiss" or "restart")
+  -- Starts the restart helper without waiting, with REAPER's executable: on
+  -- Windows the reaper.exe in `GetExePath()`, through hidden PowerShell like
+  -- the install helper; on macOS the app bundle that contains `GetExePath()`,
+  -- under nohup so it outlives REAPER. Returns true when it started.
+  local function launch_restart()
+    local dir = (reaper.GetExePath() or ""):gsub("[\\/]+$", "")
+    if dir == "" then
       return false
     end
-    if not scan.ready then
-      if reaper.time_precise() - scan.polled >= SCAN_POLL then
-        poll_scan(state)
-      end
-      if not scan.ready and reaper.time_precise() - scan.started >= SCAN_TIMEOUT then
-        end_scan(state, "restart")
-        return false
-      end
+    if platform() == "windows" then
+      local q = core.win_quote
+      local cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "
+        .. q(helpers_dir() .. "rpm-restart.ps1") .. " -Exe " .. q(dir .. "\\reaper.exe")
+      return reaper.ExecProcess(cmd, -2) ~= nil
     end
-    gfx.setfont(1, "Arial", 15)
-    local buttons = scan_buttons(scan)
-    local down = gfx.mouse_cap & 1 == 1
-    if down and not scan.was_down then
-      scan.pressed = hit(buttons, gfx.mouse_x, gfx.mouse_y)
-    elseif not down and scan.was_down then
-      local label, pressed = hit(buttons, gfx.mouse_x, gfx.mouse_y), scan.pressed
-      scan.pressed = nil
-      if label and label == pressed then
-        end_scan(state, label == "Reload project" and "reload" or "dismiss")
-        return false
-      end
+    local bundle = (dir .. "/"):match("^(.-%.app)/")
+    if not bundle then
+      return false
     end
-    scan.was_down = down
-    draw_scan(scan, buttons)
-    return true
+    local cmd = "nohup /bin/bash " .. sh_quote(helpers_dir() .. "rpm-restart.sh") .. " " .. sh_quote(bundle)
+    return os.execute(cmd .. " >/dev/null 2>&1 &") == true
   end
 
-  -- Runs the scan window's defer loop for as long as `state` is this
-  -- script's run. An error in a cycle goes to the REAPER console, closes the
-  -- window and ends the run, the reopen record kept.
-  local function scan_loop(state)
-    local function loop()
-      if install ~= state then
-        return
+  -- Asks whether to restart REAPER now, for a run that installed `count`
+  -- plugins, and ends the run with the answer. Yes writes the reopen record
+  -- with every open project that has a file, ends the run, launches the
+  -- restart helper and quits REAPER; a helper that cannot be launched is
+  -- reported instead, REAPER keeps running and the record stays for the next
+  -- start. No records the run's project, unless it was started without one,
+  -- and shows the restart message.
+  function offer_restart(state, count)
+    local answer = reaper.ShowMessageBox(count_of(count, "plugin", "plugins")
+      .. " installed. REAPER detects new plugins only when it starts. Restart REAPER now? "
+      .. "The projects open now reopen after the restart.", INSTALL_TITLE, 4)
+    if answer ~= 6 then
+      if state.reopen and state.project ~= "" then
+        reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
       end
-      local ok, again = pcall(scan_cycle, state)
-      if not ok then
-        console("guided scan failed: " .. one_line(again))
-        gfx.quit()
-        end_run(state)
-        return
-      end
-      if again then
-        reaper.defer(loop)
-      end
+      end_run(state)
+      reaper.ShowMessageBox(state.reopen and RESTART_MESSAGE or RESTART_MESSAGE_NO_REOPEN, INSTALL_TITLE, 0)
+      return
     end
-    loop()
-  end
-
-  -- Opens the guided-scan window for `items`, the run's installed items, and
-  -- shows REAPER's FX browser unless it is already shown, since its toggle
-  -- action would close it. The member runs the scan from the FX browser:
-  -- REAPER has no action or API that runs it.
-  function open_scan(state, items)
-    local entries = {}
-    for _, item in ipairs(items) do
-      entries[#entries + 1] = item.entry
+    local paths = open_project_paths()
+    if #paths > 0 then
+      reaper.SetExtState(EXT_SECTION, REOPEN_KEY, table.concat(paths, "\n"), true)
+    else
+      reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
     end
-    local now = reaper.time_precise()
-    state.scan = {
-      items = items,
-      lookup = core.catalogue.index({ plugins = entries }),
-      detected = {},
-      reload = state.reopen and state.project ~= "",
-      started = now,
-      polled = now - SCAN_POLL,
-      scroll = 0,
-      was_down = false,
-    }
-    gfx.quit()
-    gfx.init(SCAN_TITLE, SCAN_W, math.max(260, math.min(520, 190 + 22 * #items)))
-    if reaper.GetToggleCommandState(FX_BROWSER_ACTION) == 0 then
-      reaper.Main_OnCommand(FX_BROWSER_ACTION, 0)
+    end_run(state)
+    if not launch_restart() then
+      reaper.ShowMessageBox(RESTART_FAILED, INSTALL_TITLE, 0)
+      return
     end
-    scan_loop(state)
+    reaper.Main_OnCommand(QUIT_ACTION, 0)
   end
 end
 
 -- After the summary closes: the installed entries go to licence activation,
--- and when its walk-through closes, a run that installed anything records
--- the project to reopen, unless it was started without one, and opens the
--- guided scan, which ends the run once the member answers its reload offer
--- or it gives way to the restart message. A run with nothing installed ends
--- there.
+-- and when its walk-through closes, a run that installed anything offers to
+-- restart REAPER, which ends the run once the member answers. A run with
+-- nothing installed ends there.
 local function hand_off(state)
-  local installed, entries = {}, {}
+  local entries = {}
   for _, item in ipairs(state.items) do
     if item.state == "ok" then
-      installed[#installed + 1] = item
       entries[#entries + 1] = item.entry
     end
   end
@@ -2307,18 +2180,13 @@ local function hand_off(state)
       return
     end
     ended = true
-    if #installed == 0 then
+    if #entries == 0 then
       end_run(state)
       return
     end
-    if state.reopen and state.project ~= "" then
-      reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
-      state.recorded = true
-    end
-    local ok, err = pcall(open_scan, state, installed)
+    local ok, err = pcall(offer_restart, state, #entries)
     if not ok then
-      console("guided scan failed: " .. one_line(err))
-      gfx.quit()
+      console("restart offer failed: " .. one_line(err))
       end_run(state)
     end
   end
@@ -2398,10 +2266,11 @@ end
 -- (each { entry, installer }), and opens the progress window. Writes the job,
 -- deletes the old status file, prepares the transfer options and launches
 -- the platform helper without waiting. The run ends after the summary,
--- licence activation and, when anything was installed, the guided scan.
--- `opts.reopen == false` starts a run with no project to reload after the
--- guided scan or to reopen after a restart; without it the active project
--- is recorded for both. Returns true once the window is open
+-- licence activation and, when anything was installed, the restart offer.
+-- `opts.reopen == false` starts a run with no project of its own to reopen:
+-- a No to the restart offer records nothing, while a Yes still reopens every
+-- project that was open; without it a No records the active project.
+-- Returns true once the window is open
 -- (a helper that cannot be launched is reported there and in the summary),
 -- or false and the reason nothing started: a run already in progress in any
 -- script, nothing to install, no server, or the job or credentials file.
@@ -2477,9 +2346,9 @@ function M.install.start(entries, opts)
 end
 
 -- True while a run is in progress in any script: this script's own, from
--- start until its summary, licence activation and guided scan (with its
--- reload offer or restart message) are done, or another script's, whose
--- install heartbeat is younger than 3 s.
+-- start until its summary and licence activation are done and, when
+-- anything was installed, the restart offer is answered, or another
+-- script's, whose install heartbeat is younger than 3 s.
 function M.install.is_running()
   if install ~= nil then
     return true
@@ -2488,6 +2357,7 @@ function M.install.is_running()
   return beat ~= nil and reaper.time_precise() - beat < INSTALL_HEARTBEAT_FRESH
 end
 
+local NEW_TAB_ACTION = 40859 -- File: New project tab
 local reopen_waiting = false
 
 local function same_path(a, b)
@@ -2497,10 +2367,28 @@ local function same_path(a, b)
   return a == b
 end
 
+-- The open project tab whose file is `path`, or nil.
+local function open_tab_of(path)
+  local i = 0
+  while true do
+    local proj, p = reaper.EnumProjects(i)
+    if not proj then
+      return nil
+    end
+    if p and p ~= "" and same_path(p, path) then
+      return proj
+    end
+    i = i + 1
+  end
+end
+
 -- Called once by the watcher at start: when a reopen record exists, waits
 -- 2 s so REAPER finishes loading its own startup project, deletes the
--- record, and opens the recorded project unless it is the active one or the
--- file is gone. Does nothing without a record.
+-- record, and opens each recorded project in order whose file exists and
+-- that is not already open in a tab: into the current tab when that tab has
+-- no file and no changes, as the first one usually does, otherwise into a
+-- new tab. The tab of the record's last project ends selected when that
+-- project is open. Does nothing without a record.
 function M.install.reopen_after_restart()
   if reopen_waiting or reaper.GetExtState(EXT_SECTION, REOPEN_KEY) == "" then
     return
@@ -2513,12 +2401,25 @@ function M.install.reopen_after_restart()
       return
     end
     reopen_waiting = false
-    local path = reaper.GetExtState(EXT_SECTION, REOPEN_KEY)
+    local record = reaper.GetExtState(EXT_SECTION, REOPEN_KEY)
     reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
-    if path == "" or same_path(path, M.check.project_path()) or not file_exists(path) then
-      return
+    local paths = {}
+    for line in record:gmatch("[^\r\n]+") do
+      paths[#paths + 1] = line
     end
-    reaper.Main_openProject(path)
+    for _, path in ipairs(paths) do
+      if file_exists(path) and not open_tab_of(path) then
+        local proj, current = reaper.EnumProjects(-1)
+        if (current or "") ~= "" or reaper.IsProjectDirty(proj) ~= 0 then
+          reaper.Main_OnCommand(NEW_TAB_ACTION, 0)
+        end
+        reaper.Main_openProject(path)
+      end
+    end
+    local last = #paths > 0 and open_tab_of(paths[#paths])
+    if last then
+      reaper.SelectProjectInstance(last)
+    end
   end
   reaper.defer(wait)
 end

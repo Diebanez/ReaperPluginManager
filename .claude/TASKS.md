@@ -633,7 +633,7 @@ Feature: plugin-installation
 
 ## 64. Restart offer and reopening every open project
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 63
