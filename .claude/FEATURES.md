@@ -22,10 +22,10 @@ Tasks: 13, 14, 15
 
 ## plugin-catalogue — Catalogue format, codec and fetch
 
-Status: [ITERATED]
+Status: [PLANNED]
 Doc: .claude/domain/features/plugin-catalogue.md
 Source: product-design.md § Project check
-Tasks: 5, 6, 7, 8
+Tasks: 5, 6, 7, 8, 44, 45
 
 ---
 

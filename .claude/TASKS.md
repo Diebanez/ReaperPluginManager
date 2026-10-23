@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 43
+Last task number: 45
 
 ---
 
@@ -428,5 +428,25 @@ Status: [DONE]
 Target: claude
 Files: README.md, server/README.md, CLAUDE.md, .claude/domain/technical-direction.md, .claude/domain/features/catalogue-assistant.md, .claude/domain/design-process.md
 Preconditions: 42
+
+---
+
+## 44. Script installer type and the unmanaged-installer check
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua, server/manifest.example.json
+Preconditions: 6
+Feature: plugin-catalogue
+
+---
+
+## 45. Update documentation for feature `plugin-catalogue`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 44
+Feature: plugin-catalogue
 
 ---
