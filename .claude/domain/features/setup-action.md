@@ -52,6 +52,8 @@ Built on Lua ReaScripts with REAPER's native dialogs, per
   kept.
 - **Action registration** — registers the four action scripts with
   `AddRemoveReaScript`, which is idempotent for an already-registered path.
+  The report names each action, registered or failed, as REAPER's Action
+  list shows it: "Script: <file>".
 - **Startup hook** — creates `Scripts/` if missing and writes, into
   `__startup.lua`, a block between `-- >>> ReaperPluginManager` and
   `-- <<< ReaperPluginManager` markers that runs the watcher inside `pcall`
