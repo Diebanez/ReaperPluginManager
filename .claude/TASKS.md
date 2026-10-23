@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 47
+Last task number: 49
 
 ---
 
@@ -468,5 +468,25 @@ Target: claude
 Files: server/README.md
 Preconditions: 46
 Feature: install-helper-windows
+
+---
+
+## 48. macOS helper script installers in the privileged phase
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
+Preconditions: 27, 44
+Feature: install-helper-macos
+
+---
+
+## 49. Update documentation for feature `install-helper-macos`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 48
+Feature: install-helper-macos
 
 ---
