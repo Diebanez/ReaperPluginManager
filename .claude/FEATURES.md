@@ -109,3 +109,12 @@ Source: product-design.md § Catalogue assistant
 Tasks: 39, 40
 
 ---
+
+## catalogue-browser — Browsing and installing from the catalogue
+
+Status: [NEW]
+Doc: .claude/domain/features/catalogue-browser.md
+Source: product-design.md § Catalogue browser
+Tasks: none
+
+---
