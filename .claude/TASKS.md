@@ -523,7 +523,7 @@ Feature: catalogue-editor
 
 ## 53. Update documentation for feature `catalogue-editor`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md
 Preconditions: 52, 44, 45, 46, 47, 48, 49

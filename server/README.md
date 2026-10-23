@@ -61,11 +61,13 @@ stored in it as you make it — an entry form's changes when you press **Save**
 confirmation.
 
 The window lists every entry of the draft with its name, vendor, the
-platforms its installers cover and its activation method. An entry added,
-changed or removed since the catalogue the draft started from is marked so; a
-removed entry stays listed, greyed out, until the draft is published. A
-problem is shown beside its entry, and publishing is blocked until every one
-is fixed:
+platforms its installers cover, its activation method and its marks. An entry
+added, changed or removed since the catalogue the draft started from is marked
+so; a removed entry stays listed, greyed out, until the draft is published. An
+entry with a `script` installer on either platform is marked *unmanaged
+installer*, and members are warned before it installs (*Script installers*
+below). A problem is shown beside its entry, and publishing is blocked until
+every one is fixed:
 
 - anything that makes the manager skip the entry, as *How the manager reads
   the catalogue* below lists;
@@ -124,10 +126,15 @@ below). Each installer has:
   never uploaded.
 - **Remove installer** — takes the installer out of the entry.
 - **Type** — the `type` field, or *From the file extension* to leave it out.
-  A shared package offers `zip` only.
+  The Windows and macOS installers offer their platform's types, and a shared
+  package offers `zip` and `script`. All three offer `script`, shown as
+  *script - a zip carrying an install script* (*Script installers* below).
 - **Silent-install arguments** — the `args` field; not on the macOS
-  installer.
-- **Destination** — the `dest` field.
+  installer, nor on a `script` installer.
+- **Destination** — the `dest` field; not on a `script` installer.
+
+For a `script` installer, the form says in place of the last two what its zip
+holds at its root, and that it is an unmanaged installer.
 
 The activation is set by its method — `none`, `vendor-app`, `serial` or
 `sign-in` — and, for any method but `none`, a URL and instructions;
@@ -245,7 +252,8 @@ An installer of type `script` has the plugin installed by a script of yours
 rather than by an installer or by copying plugin files to their folders. Its
 `file` is a zip holding, at its root, `install.ps1` for a `windows` installer
 or `install.sh` for a `macos` installer, plus the files the script installs.
-`sha256` covers the zip, and `args` and `dest` do not apply.
+`sha256` covers the zip, and `args` and `dest` do not apply. *Script
+installers* below says when to use one and how to build it.
 
 An entry with a `script` installer is an unmanaged installer on that
 platform: a script from the group's server that runs with administrator
@@ -492,6 +500,149 @@ Before publishing a `pkg` or `dmg` entry, try its installer by hand on a Mac:
 - Open a disk image and check that it holds a package at its top level or one
   folder down, or the plugin bundles themselves. An image holding only an
   installer application cannot be installed by the manager.
+
+## Script installers
+
+A `script` installer installs a plugin with a script you write. Use one for
+a plugin that neither a silent installer (`exe`, `msi`, `pkg`, `dmg`) nor
+plain plugin files copied to their folders (`zip`) can install — typically a
+plugin that needs a data folder beside it, which the manager's own copying
+does not place. *The catalogue format* above gives the installer's fields.
+
+### Building the zip
+
+The installer's file is a zip holding, at its root, the install script and
+the files it installs:
+
+- `install.ps1` for a `windows` installer, run with Windows PowerShell 5.1;
+- `install.sh` for a `macos` installer, run with bash;
+- both scripts in one zip for a package shared by both platforms (*One
+  package for both platforms* above).
+
+The manager downloads and checks the zip as any other installer, unpacks it,
+and runs the script from the unpacked folder. On Windows the script runs with
+the administrator rights of the run (*Installers on Windows* above); on macOS
+it runs with the member's own rights, so it cannot install into system
+locations (*Installers on macOS* above). A script has no time limit: one that
+waits for input holds up the rest of the run.
+
+The script receives these environment variables:
+
+- `RPM_PAYLOAD_DIR` — the unpacked folder, where the script runs.
+- `RPM_VST3_DIR` — the VST3 folder.
+- `RPM_CLAP_DIR` — the CLAP folder.
+- `RPM_VST2_DIR` — the VST2 folder. On Windows it is the member's `vst2_dir`
+  setting, and empty when the member set no VST2 folder.
+- `RPM_AU_DIR` — macOS only: the AU (`Components`) folder.
+
+They name the folders *Where plugins are copied* lists for each platform: on
+macOS the folders under the member's `~/Library/Audio/Plug-Ins`. A folder may
+not exist yet on a member's machine, so create it before copying into it.
+
+The exit code decides the outcome. `0` is success; any other code fails the
+plugin, with the script's last non-empty output line, standard error
+included, as the failure message, or "install script exited with code <n>"
+when it printed nothing. Report a failure by printing its reason —
+`Write-Output` on Windows, `echo` on macOS — then exiting with a nonzero
+code. On Windows, an error PowerShell reports itself, such as one written
+with `Write-Error`, ends the output with its error-record lines, and the
+last of them becomes the message instead of your reason.
+
+### Example: a plugin with a data folder
+
+Polarity Audio's The Cue ships a VST3 plugin and a `The Cue.instruments`
+folder, which must sit beside the plugin in the VST3 folder. The vendor's
+archive holds `Windows/The Cue.vst3`, a single file, and the bundles
+`MAC/The Cue.vst3` and `MAC/The Cue.component`, each platform with its own
+`The Cue.instruments` folder holding `The Cue.mse`. One zip per platform
+carries the platform's files and its script at the root:
+
+```text
+TheCue-win.zip                 TheCue-mac.zip
+  install.ps1                    install.sh
+  The Cue.vst3                   The Cue.vst3/
+  The Cue.instruments/           The Cue.instruments/
+    The Cue.mse                    The Cue.mse
+```
+
+`install.ps1` copies both into the VST3 folder, replacing any earlier copy:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$dest = $env:RPM_VST3_DIR
+try {
+  New-Item -ItemType Directory -Force -Path $dest | Out-Null
+  foreach ($name in @('The Cue.vst3', 'The Cue.instruments')) {
+    $target = Join-Path $dest $name
+    if (Test-Path -LiteralPath $target) {
+      Remove-Item -LiteralPath $target -Recurse -Force
+    }
+    Copy-Item -LiteralPath (Join-Path $env:RPM_PAYLOAD_DIR $name) -Destination $dest -Recurse
+  }
+} catch {
+  Write-Output ('could not install The Cue: ' + $_.Exception.Message)
+  exit 1
+}
+exit 0
+```
+
+`install.sh` does the same on macOS:
+
+```bash
+#!/bin/bash
+dest=$RPM_VST3_DIR
+mkdir -p "$dest" || { echo "could not create $dest"; exit 1; }
+for name in "The Cue.vst3" "The Cue.instruments"; do
+  rm -rf "$dest/$name"
+  if ! cp -R "$RPM_PAYLOAD_DIR/$name" "$dest/"; then
+    echo "could not copy $name into $dest"
+    exit 1
+  fi
+done
+exit 0
+```
+
+The entry names both zips with type `script`, as the `polarity-the-cue`
+entry of `manifest.example.json` does:
+
+```json
+{
+  "id": "polarity-the-cue",
+  "name": "The Cue",
+  "vendor": "Polarity Audio",
+  "note": "VST3 with its instruments folder",
+  "match": ["The Cue", "The Cue.vst3"],
+  "installers": {
+    "windows": { "file": "polarity/TheCue-win.zip", "type": "script" },
+    "macos": { "file": "polarity/TheCue-mac.zip", "type": "script" }
+  }
+}
+```
+
+To install the AU as well, add `The Cue.component` to the macOS zip, have
+`install.sh` copy it and a second copy of `The Cue.instruments` into
+`$RPM_AU_DIR` the same way, and add the plugin's AU id to `match` (*Match
+strings* below).
+
+### Try script installers by hand first
+
+Before publishing a `script` entry, run each script by hand on its platform,
+from the unpacked zip, with the variables set as the manager sets them:
+
+- On Windows, from an administrator PowerShell window, set
+  `$env:RPM_PAYLOAD_DIR` to the unpacked folder and the other variables to
+  the plugin folders, run
+  `powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1`, and
+  check that `$LASTEXITCODE` is `0`.
+- On a Mac, in Terminal, run `RPM_PAYLOAD_DIR="$PWD"
+  RPM_VST3_DIR="$HOME/Library/Audio/Plug-Ins/VST3" bash install.sh` with the
+  other variables your script uses, and check that `echo $?` prints `0`.
+
+Then check that REAPER loads the plugin, and run the script a second time to
+check that it replaces its earlier copy. Remember that a script installer is
+an unmanaged installer: members are warned before it installs and asked to
+continue only if they trust you (*Installing plugins* in `README.md` at the
+repository root).
 
 ## Match strings
 
