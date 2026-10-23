@@ -593,7 +593,7 @@ Feature: catalogue-browser
 
 ## 60. Update documentation for feature `catalogue-browser`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md, CLAUDE.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/project-watcher.md, .claude/domain/features/plugin-detection.md, .claude/domain/features/plugin-catalogue.md, .claude/domain/features/setup-action.md, .claude/domain/technical-direction.md
 Preconditions: 54, 55, 56, 57, 58, 59

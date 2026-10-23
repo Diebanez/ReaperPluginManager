@@ -5,6 +5,8 @@ projects. One maintainer keeps a catalogue of plugin installers on the group's
 own server. When you open a project that uses plugins you do not have, the
 manager lists them, installs what the catalogue offers once you agree, and
 guides you through activating each plugin's licence with your own account.
+You can also browse the catalogue and install any plugin it offers before a
+project needs it.
 
 ## Installing
 
@@ -83,9 +85,9 @@ After you confirm the dialog, Setup:
 
 1. saves the settings to `config.ini` and the password to your system's
    secret store;
-2. registers the manager's four actions: *Script: RPM_Watcher.lua*,
-   *Script: RPM_CheckProject.lua*, *Script: RPM_CatalogueManager.lua* and
-   *Script: RPM_Setup.lua*;
+2. registers the manager's five actions: *Script: RPM_Watcher.lua*,
+   *Script: RPM_CheckProject.lua*, *Script: RPM_Browse.lua*,
+   *Script: RPM_CatalogueManager.lua* and *Script: RPM_Setup.lua*;
 3. adds a block between `-- >>> ReaperPluginManager` and
    `-- <<< ReaperPluginManager` to REAPER's `Scripts/__startup.lua`, creating
    the file when missing and leaving the rest of it as it is, so the watcher
@@ -210,19 +212,74 @@ the address, it is not used. With no server and no cached copy, the check
 finds no catalogue, nothing is offered for installing, and the banner reads
 "No catalogue is available, so nothing can be installed." with the reason.
 
+## Browsing the catalogue
+
+The *Script: RPM_Browse.lua* action lists every plugin the group's catalogue
+offers, so you can install one before any project uses it. Run it from
+REAPER's action list; it needs no open project.
+
+### The catalogue window
+
+One window lists the catalogue's plugins, sorted by name. Its heading counts
+them and says how many are installed on your machine and how many can be
+installed. Each plugin is listed as *Name (Vendor)* with the maintainer's
+note, and *unmanaged installer* beside the name of a plugin that installs
+through an install script (*The summary window* above). Each plugin is in one
+of three states:
+
+- **Installed** — REAPER lists the plugin, recognised the way the project
+  check recognises it. The row says "installed" and cannot be ticked:
+  the browser never reinstalls or updates a plugin.
+- **Can be installed** — the catalogue has an installer for your platform.
+  The row carries a checkbox; a click anywhere on the row ticks or unticks it.
+- **No installer** — the catalogue knows the plugin but has no installer for
+  your platform. The row says "no installer for Windows" (or macOS) and
+  cannot be ticked.
+
+Typing filters the list: it keeps the plugins whose name contains what you
+typed, ignoring case. Backspace removes the last character; Escape clears the
+search, or closes the window when the search is already empty. A tick
+survives the search: a ticked plugin the search hides stays ticked and is
+installed with the others. The list scrolls with the mouse wheel, the arrow
+keys, Page Up, Page Down, Home and End.
+
+At the bottom, **Install N plugins** — shown only when at least one plugin is
+ticked, and counting every ticked plugin — closes the window and installs
+them (*Installing plugins* below); **Close** closes it and installs nothing.
+When the ticked plugins include any marked *unmanaged installer*, the same
+one confirmation as in the summary window comes first; cancelling it keeps
+the window open with your ticks.
+
+### While an install is running
+
+One install runs at a time, wherever it was started. While one is running,
+the action opens no window and says "An install is already running. Try
+again when it has finished."; pressing **Install N plugins** while an
+install started elsewhere is running shows the same message and keeps the
+window open with your ticks.
+
+### When the server cannot be reached
+
+The browser fetches the catalogue as a check does. When it uses the cached
+copy, a banner under the heading says so and why: "The server catalogue
+could not be used, so the cached one was." followed by the reason. With no
+server and no cached copy, no window opens, and a message says "No catalogue
+is available, so nothing can be listed." with the reason. A catalogue that
+lists no plugins opens no window either: "The catalogue lists no plugins."
+
 ## Installing plugins
 
-When you agree to install the plugins the summary offers, the manager
-downloads and installs them in the background, so REAPER stays usable while
-they install. One install runs at a time, and a failure stops only the plugin
-it hit; the others go on.
+When you agree to install the plugins the summary offers, or the ones you
+ticked in the catalogue window, the manager downloads and installs them in
+the background, so REAPER stays usable while they install. One install runs
+at a time, and a failure stops only the plugin it hit; the others go on.
 
 When the plugins to install include any marked *unmanaged installer*,
 **Install N plugins** first asks for confirmation, in one prompt naming each
 of them. Continue only if you trust the server's maintainer: their script
 runs on your machine with the rights stated in *The summary window* above.
 Cancelling installs nothing, not even the other plugins, and leaves the
-summary window open.
+summary window or the catalogue window open.
 
 ### The progress window
 
@@ -255,10 +312,11 @@ licences* below).
 ### Restart and reopen
 
 REAPER detects new plugins only when it starts. When at least one plugin was
-installed, the manager asks you to restart REAPER. After the restart, the
-project you were working on reopens on its own once REAPER has finished
-starting, unless it is already open or its file is gone. If an installed
-plugin still does not appear, rescan in REAPER:
+installed, the manager asks you to restart REAPER. After the restart of a
+run started from the summary window, the project you were working on reopens
+on its own once REAPER has finished starting, unless it is already open or
+its file is gone. A run started from the catalogue window reopens no
+project. If an installed plugin still does not appear, rescan in REAPER:
 *Preferences > Plug-ins > VST > Re-scan*.
 
 ## Activating licences

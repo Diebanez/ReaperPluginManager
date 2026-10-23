@@ -11,7 +11,8 @@ every transfer.
 
 - **Inside REAPER — Lua ReaScripts** (REAPER 7 or later, Lua 5.4,
   `reaper.EnumInstalledFX` required). Covers setup, project check, the
-  progress window, licence activation and catalogue management.
+  catalogue browser, the progress window, licence activation and catalogue
+  management.
 - **Catalogue editor UI — ReaImGui.** Needed only on the maintainer's
   machine, for catalogue management; members never need it. Every other
   window uses REAPER's own dialogs and `gfx`.
@@ -29,8 +30,9 @@ A single product with two halves:
 - **Lua side** — a pure-logic module with no `reaper.*` calls (catalogue
   JSON, settings, project-file parsing, plugin matching, classification, job
   and status files), a REAPER-side module (configuration, catalogue fetch,
-  project check, helper launch, windows), and one script per REAPER action:
-  watcher, check project, catalogue management, setup.
+  project check, helper launch, windows), and one script per REAPER action,
+  five in all: watcher, check project, browse catalogue, catalogue
+  management, setup.
 - **Helper side** — one platform helper, launched detached by the Lua side
   for each install run, so REAPER never blocks.
 
@@ -86,8 +88,10 @@ no queue or scheduler beyond these.
 - **Tool ↔ server** — `curl` over the configured scheme, credentials passed
   with `--netrc-file`, TLS level from the settings.
 - **REAPER start ↔ tool** — a marked block in `Scripts/__startup.lua` that
-  launches the watcher; REAPER ExtStates carry the watcher heartbeat and the
-  project to reopen after a restart.
+  launches the watcher; REAPER ExtStates carry the watcher heartbeat, the
+  install heartbeat — which keeps one install running across every action,
+  each action running in its own Lua state — and the project to reopen after
+  a restart.
 
 ## Cross-cutting concerns
 

@@ -37,8 +37,9 @@ All paths are relative to the repository root.
 - `Scripts/ReaperPluginManager/rpm_reaper.lua` — the REAPER side: settings,
   credentials, transfers, catalogue fetch, project check, helper launch,
   windows.
-- `RPM_Watcher.lua`, `RPM_CheckProject.lua`, `RPM_CatalogueManager.lua`,
-  `RPM_Setup.lua` — the four REAPER actions, beside the two modules above.
+- `RPM_Watcher.lua`, `RPM_CheckProject.lua`, `RPM_Browse.lua`,
+  `RPM_CatalogueManager.lua`, `RPM_Setup.lua` — the five REAPER actions,
+  beside the two modules above.
 - `Scripts/ReaperPluginManager/helpers/` — `rpm-install.ps1` (Windows) and
   `rpm-install.sh` (macOS) install helpers, `rpm-run-hidden.ps1` (runs a
   Windows background `cmd.exe` line with no console window), and the

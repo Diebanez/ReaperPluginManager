@@ -44,8 +44,9 @@ Lua ReaScripts with a `gfx` window, per
   on the following poll, so the project has finished loading. Switching tabs
   changes no pair and triggers nothing; closing and reopening a project
   does. Each check runs inside `pcall`: an error goes to the REAPER console
-  and the loop continues. While an install runs, open events queue and are
-  checked after it ends.
+  and the loop continues. While an install runs — whichever script started
+  it, as `plugin-installation.is_running()` reports across scripts — open
+  events queue and are checked after it ends.
 - **Check assembly** — reads the saved project file from disk, enumerates
   installed plugins with `EnumInstalledFX`, fetches the catalogue, runs
   `plugin-detection`, and asks `licence-activation` which of the project's
@@ -58,16 +59,23 @@ Lua ReaScripts with a `gfx` window, per
   [FORMAT] ×instances`, only when `notify_unknown` is on), instances to
   replace by hand, activation pending. A banner line states when the server
   was unreachable and the cached catalogue was used, and why. Buttons:
-  "Install N plugins" (only with something installable) and "Close".
+  "Install N plugins" (only with something installable) and "Close". Its list
+  primitives — text wrapping, the install-row label, button layout, drawing
+  and hit-testing, scrolling keys and wheel, scrollbar and catalogue-source
+  banner — are shared with the `catalogue-browser` window, never copied.
 - **Check action** — runs the same assembly on the current project, always
   shows a result: the summary window, "All N plugins are installed", or
   "Save the project first".
-- **Install hand-off** — on "Install", when the installable entries include
-  at least one unmanaged installer, it first asks for confirmation in one
-  prompt naming every such plugin, worded for the platform the script runs
-  on — on Windows along the lines of "<Plugin> uses an unmanaged installer:
-  a script from your group's server that runs with administrator rights.
-  Continue only if you trust the server's maintainer.", on macOS "<Plugin>
+- **Install hand-off** — on "Install", the unmanaged confirmation runs over
+  the installable entries. It is the shared
+  `confirm_unmanaged(items, platform, title)`, which the summary window and
+  the `catalogue-browser` window both call: when the entries include at
+  least one unmanaged installer, it asks for confirmation in one prompt
+  titled `title` and naming every such plugin, worded for the platform the
+  script runs on — on Windows along the lines of "<Plugin> uses an
+  unmanaged installer: a script from your group's server that runs with
+  administrator rights. Continue only if you trust the server's
+  maintainer.", on macOS "<Plugin>
   uses an unmanaged installer: a script from your group's server that runs
   on this Mac with your user's rights. Continue only if you trust the
   server's maintainer." (safeguard set in
@@ -87,10 +95,15 @@ Lua ReaScripts with a `gfx` window, per
 
 - Exposed: the REAPER actions "Script: RPM_Watcher.lua" and
   "Script: RPM_CheckProject.lua".
+- Shared with `catalogue-browser`:
+  `confirm_unmanaged(items, platform, title) → bool` — true at once when no
+  item has an unmanaged installer on `platform`, otherwise true once the
+  member confirms the one prompt; and the summary window's list primitives.
 - Expects: `plugin-catalogue.fetch`, `plugin-catalogue.unmanaged`,
   `plugin-detection.*`,
   `licence-activation.pending_for(installed_refs)`,
-  `plugin-installation.start(entries)`, `plugin-installation.is_running()`,
+  `plugin-installation.start(entries)`, `plugin-installation.is_running()`
+  (true for a run started by any script),
   `plugin-installation.reopen_after_restart()`.
 - Failure contract: an unsaved project is never checked automatically; a
   missing project file is reported by the check action and ignored by the

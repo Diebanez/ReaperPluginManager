@@ -52,9 +52,11 @@ Pure Lua in the module with no `reaper.*` calls, per
 - **Catalogue association** — a reference or installed plugin looks up, in
   order, its identifier key, `norm(base name)`, `norm(bare name)` in the
   catalogue's match index. An entry is "present" when any installed plugin
-  associates with it.
+  associates with it: `present_entries` returns that set, and the classifier
+  and the `catalogue-browser` entry states both call it.
 - **Classifier** — per missing reference, with `p` the associated entry and
-  `spec` its installer for this platform: `p` present → replace by hand;
+  `spec` its installer for this platform (`plugin-catalogue`'s
+  `catalogue.installer(p, platform)`): `p` present → replace by hand;
   `spec` exists → installable (grouped per entry, instances summed), and
   also replace by hand when the format cannot load on this platform; `p`
   without `spec` → no installer for this platform; no `p` and an unloadable
@@ -72,6 +74,10 @@ Output: the classification groups. Nothing is persisted.
 - `scan_project(text) → refs[]` — each `{ tag, name, ident, count }`.
 - `norm(s)`, `split_name(display) → format, base, bare`, `ident_key(ident)`.
 - `missing(refs, installed) → refs[]`
+- `present_entries(installed, lookup) → set` — the catalogue entries some
+  installed plugin associates with through the match index `lookup`, keyed
+  by entry; empty when `lookup` is nil (no catalogue). Called by `classify`
+  and by `catalogue-browser`.
 - `classify(missing_refs, installed, catalogue_index, platform) → { installable[], no_installer[], unknown[], replace[] }`
 - `group_installed(installed) → groups[]` — installed plugins grouped by
   `norm(base name)`, so the formats of one plugin form one group; used by

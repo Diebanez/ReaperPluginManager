@@ -50,7 +50,9 @@ Built on Lua ReaScripts with REAPER's native dialogs, per
   credential store, the password. Empty user → anonymous: the stored secret
   is removed. Empty password with the same user → the stored password is
   kept.
-- **Action registration** — registers the four action scripts with
+- **Action registration** — registers the five action scripts — "Script:
+  RPM_Watcher.lua", "Script: RPM_CheckProject.lua", "Script: RPM_Browse.lua",
+  "Script: RPM_CatalogueManager.lua" and "Script: RPM_Setup.lua" — with
   `AddRemoveReaScript`, which is idempotent for an already-registered path.
   The report names each action, registered or failed, as REAPER's Action
   list shows it: "Script: <file>".

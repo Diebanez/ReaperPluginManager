@@ -108,8 +108,13 @@ fetch lives in the module with no `reaper.*` calls.
   `server`, `cache` or `none`; `reason` explains a fallback.
 - `catalogue.index(catalogue) → lookup(normalized_string) → entry | nil`
 - `catalogue.unmanaged(entry, platform) → bool` — true when the entry's
-  installer for that platform is of type `script`; `project-watcher` and
-  `catalogue-editor` both read the unmanaged-installer flag from it.
+  installer for that platform is of type `script`; `project-watcher`,
+  `catalogue-browser` and `catalogue-editor` read the unmanaged-installer
+  flag from it.
+- `catalogue.installer(entry, platform) → installer | nil` — the entry's
+  installer object for that platform, nil when it is absent or JSON null or
+  the entry is malformed; never raises. `plugin-detection`'s classifier and
+  `catalogue-browser` read the platform installer from it.
 - Failure contract: fetch never raises; a malformed catalogue on the server
   never replaces a good cache.
 

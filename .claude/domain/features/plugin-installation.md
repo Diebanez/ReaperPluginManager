@@ -10,15 +10,18 @@ helpers implement.
 
 Implements [product-design.md § Plugin installation](../product-design.md#plugin-installation):
 installs run in the background, a progress window shows each plugin, a run
-asks for administrator rights at most once, and the project reopens on its
-own after the restart REAPER needs to see new plugins.
+asks for administrator rights at most once, and a run started from a project
+reopens it on its own after the restart REAPER needs to see new plugins. A
+run is started from a project by `project-watcher` or from the catalogue by
+`catalogue-browser`, which has no project to reopen.
 
 ## Scope and non-goals
 
 In scope:
 - The helper contract: job file, status file, helper arguments, routing of
   extracted plugins, running script installers.
-- Starting an install run, one at a time.
+- Starting an install run, with or without a project to reopen, one at a
+  time across every REAPER script.
 - The progress window and the final summary.
 - The hand-off to licence activation.
 - Reopening the project after restart.
@@ -26,7 +29,7 @@ In scope:
 Non-goals:
 - Download and install mechanics — `install-helper-windows`,
   `install-helper-macos`.
-- Deciding what to install — `project-watcher`.
+- Deciding what to install — `project-watcher`, `catalogue-browser`.
 - Rescanning plugins without a restart (REAPER has no API for it).
 
 ## Architecture
@@ -54,10 +57,13 @@ processes.
   reported as not started.
 - **Completion** — at `DONE`: a summary of installed and failed plugins
   with each failure's message; the installed entries go to
-  `licence-activation`; then, when anything was installed, the restart
-  message ("Restart REAPER: it detects the new plugins at startup and this
-  project reopens. If a plugin does not appear: Preferences > Plug-ins > VST
-  > Re-scan.") and the reopen record.
+  `licence-activation`; then, when anything was installed, the reopen record
+  and the restart message ("Restart REAPER: it detects the new plugins at
+  startup and this project reopens. If a plugin does not appear: Preferences
+  > Plug-ins > VST > Re-scan."). A run started with no project to reopen
+  writes no reopen record, and its restart message drops the "and this
+  project reopens" clause ("Restart REAPER: it detects the new plugins at
+  startup. If a plugin does not appear: …"). The run ends there.
 - **Reopen after restart** — called by the watcher at start: when a reopen
   record exists, it waits 2 s (REAPER finishes loading its own startup
   project), deletes the record, and opens the recorded project if it is not
@@ -119,12 +125,24 @@ processes.
 - **Work folder** (`work/`) — downloads, per plugin id.
 - **Reopen record** — persistent ExtState `ReaperPluginManager/reopen` = the
   project path.
-- **In memory** — the running flag and the per-plugin progress state.
+- **Install heartbeat** — non-persistent ExtState
+  `ReaperPluginManager/install_heartbeat` = the time of the running install's
+  last defer cycle, written each cycle from `start` until the run ends and
+  then deleted. Every REAPER action runs in its own Lua state, so this is
+  how a run is seen by the other scripts.
+- **In memory** — the script's own run and the per-plugin progress state.
 
 ## Interfaces and contracts
 
-- `start(entries) → ok, err` — refuses while a run is in progress.
-- `is_running() → bool`
+- `start(entries, opts) → ok, err` — `entries` are install items, each
+  `{ entry, installer }`. `opts.reopen == false` starts a run with no
+  project to reopen: no reopen record, and the restart message without its
+  reopen clause; without the option the active project is recorded for
+  reopening. Refuses while `is_running()` is true, so two scripts never
+  share the job and status files.
+- `is_running() → bool` — true for this script's own run, from `start`
+  until its summary, licence activation and restart message are done, or
+  for another script's run whose install heartbeat is younger than 3 s.
 - `reopen_after_restart()` — idempotent; does nothing without a record.
 - Expects: `server-access.helper_options()`,
   `licence-activation.after_install(installed_entries)`.
@@ -139,6 +157,8 @@ processes.
 - `install-helper-windows`, `install-helper-macos` — implement the contract.
 - `licence-activation` — takes over after a run.
 - `project-watcher` — calls `start`, `is_running`, `reopen_after_restart`.
+- `catalogue-browser` — calls `start(entries, { reopen = false })` and
+  `is_running`.
 
 ## Open questions
 
