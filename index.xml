@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="ReaperPluginManager" commit="7201bae1a2359c299b94f41a20d40f790427574b">
+  <category name="Scripts/ReaperPluginManager">
+    <reapack name="RPM_Setup.lua" type="script" desc="ReaperPluginManager">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Lists the plugins a REAPER project uses that are not installed, installs the ones a group's private catalogue offers, and guides licence activation. Windows and macOS; run the Setup action first.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Adds four actions: Setup, Watcher, Check project and Catalogue management (the maintainer's editor, which needs ReaImGui).\par}
+}
+]]></description>
+      </metadata>
+      <version name="1.0.0" author="Diebanez" time="2026-10-23T14:39:02Z">
+        <source main="main">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/RPM_Setup.lua</source>
+        <source main="main" file="RPM_Watcher.lua">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/RPM_Watcher.lua</source>
+        <source main="main" file="RPM_CheckProject.lua">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/RPM_CheckProject.lua</source>
+        <source main="main" file="RPM_CatalogueManager.lua">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/RPM_CatalogueManager.lua</source>
+        <source file="rpm_core.lua">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/rpm_core.lua</source>
+        <source file="rpm_reaper.lua">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/rpm_reaper.lua</source>
+        <source file="helpers/rpm-install.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/helpers/rpm-install.ps1</source>
+        <source file="helpers/rpm-install.sh">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/helpers/rpm-install.sh</source>
+        <source file="helpers/rpm-secret.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/helpers/rpm-secret.ps1</source>
+        <source file="helpers/rpm-secret.sh">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/helpers/rpm-secret.sh</source>
+        <source file="helpers/rpm-run-hidden.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/7201bae1a2359c299b94f41a20d40f790427574b/Scripts/ReaperPluginManager/helpers/rpm-run-hidden.ps1</source>
+      </version>
+    </reapack>
+  </category>
+  <metadata>
+    <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaperPluginManager\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ReaperPluginManager keeps a group of REAPER users able to open each other's projects. One maintainer keeps a catalogue of plugin installers on the group's own server. When you open a project that uses plugins you do not have, the manager lists them, installs what the catalogue offers once you agree, and guides you through activating each plugin's licence with your own account.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Installing\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The manager needs REAPER 7 or later on Windows 10/11 or macOS; on any other system it does nothing. Members and the maintainer install it the same way, through ReaPack, REAPER's package manager:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab If REAPER has no {\i Extensions > ReaPack} menu, install ReaPack first, as {\field{\*\fldinst{HYPERLINK "https://reapack.com"}}{\fldrslt{\ul
+reapack.com
+}}}
+ describes, and restart REAPER.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Choose {\i Extensions > ReaPack > Import repositories...}, paste {\f1 https://github.com/Diebanez/ReaperPluginManager/raw/master/index.xml} and confirm.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Choose {\i Extensions > ReaPack > Browse packages}, find the ReaperPluginManager package, install it and apply the change.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Run Setup once: open REAPER's action list ({\i Actions > Show action list}), search for {\f1 RPM_Setup}, and run {\i Script: RPM_Setup.lua}.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ReaPack puts the files in {\f1 Scripts/ReaperPluginManager/Scripts/ReaperPluginManager/} under REAPER's resource path ({\i Options > Show REAPER resource path in explorer/finder}).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Updating and removing\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Updates arrive through ReaPack's package synchronisation ({\i Extensions > ReaPack > Synchronize packages}); there is nothing to download by hand.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 To remove the manager, uninstall the ReaperPluginManager package in {\i Extensions > ReaPack > Browse packages}. ReaPack removes the scripts but leaves Setup's block in REAPER's {\f1 Scripts/__startup.lua}: delete it by hand, from the {\f1 -- >>> ReaperPluginManager} line to the {\f1 -- <<< ReaperPluginManager} line ({\i What Setup does} below).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 For the maintainer\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The {\i Catalogue management} action also needs the ReaImGui extension, which ReaPack cannot install as a dependency of this package. Install it yourself from {\i Extensions > ReaPack > Browse packages}, searching for ReaImGui (it comes from the ReaTeam Extensions repository, which ReaPack includes by default), and restart REAPER.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The ReaPack package carries only the scripts and their helpers. The server setup guide and the example catalogue are in the repository's {\field{\*\fldinst{HYPERLINK "https://github.com/Diebanez/ReaperPluginManager/tree/master/server"}}{\fldrslt{\ul
+{\f1 server/} folder
+}}}
+.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Setup\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Setup asks for the server connection in one dialog, saves it, and puts the manager to work. It refuses to run on a REAPER older than version 7 ("REAPER 7 or later is required.") and on systems other than Windows and macOS.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The dialog\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The dialog proposes the current values; the password field always starts empty.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Server URL} \u8212- the server address, starting with its scheme, such as {\f1 ftps://example.com/plugins/}; a missing final {\f1 /} is added. An address with no scheme is refused, and the dialog opens again.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b User} \u8212- the server account's user name. Leave it empty to connect anonymously; any stored password is then removed.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Password} \u8212- masked as you type. Left empty with the same user, the stored password is kept. A password with spaces, tabs or line breaks is refused, and the dialog opens again with the other values kept. Where the password is kept is described under {\i The server password}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b TLS} \u8212- {\f1 required}, {\f1 try} or {\f1 off}, as the {\f1 tls} key in {\i Settings} describes; any other value becomes {\f1 required}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Automatic check} \u8212- {\f1 yes} checks every project when it is opened; {\f1 no} (or {\f1 n}, {\f1 0}, {\f1 false}, {\f1 off}) checks only on demand. Any other value counts as {\f1 yes}.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Cancelling the dialog changes nothing.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 What Setup does\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 After you confirm the dialog, Setup:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab saves the settings to {\f1 config.ini} and the password to your system's secret store;\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab registers the manager's four actions: {\i Watcher}, {\i Check project}, {\i Catalogue management} and {\i Setup};\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab adds a block between {\f1 -- >>> ReaperPluginManager} and {\f1 -- <<< ReaperPluginManager} to REAPER's {\f1 Scripts/__startup.lua}, creating the file when missing and leaving the rest of it as it is, so the watcher starts with every REAPER start;\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab starts the watcher right away, when automatic checking is on;\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 5.\tx360\tab tests the connection by fetching the catalogue.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 One message then reports each step, ending with "Connection succeeded: the catalogue lists N plugins." or "Connection failed:" and the reason. A step that fails is reported and the others still run where they can. A failed connection test keeps the saved settings, so you can fix the server side and run Setup again to test again.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Turning automatic checks off\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Run Setup and answer {\f1 no} to {\i Automatic check}, or set {\f1 auto = 0} in the {\f1 [check]} section of {\f1 config.ini}. A running watcher stops within a second, and from the next REAPER start the watcher exits at once; projects are then checked only when you run {\i Check project}. The startup block stays in place. To turn checks back on, run Setup and answer {\f1 yes}: the watcher starts at once.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Running Setup again\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Running Setup again is safe: use it to change the server, the user, the password, the TLS level or automatic checking, or only to test the connection. It proposes the current values, keeps each action already registered, replaces its startup block in place instead of adding a second one, and does not start a second watcher.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 The project check\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A check reads the project file as last saved, finds every plugin the project uses, wherever it sits \u8212- track and master effects, take effects and containers \u8212- and works out which are not installed on your machine. A plugin counts as installed when REAPER lists the same plugin file or id, or a plugin of the same format and name, so a project saved on another platform is recognised too. Plugins added since the last save are not part of the check.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 When a project is checked\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 While automatic checking is on ({\f1 auto} in the {\f1 [check]} section of the settings), the {\i ReaperPluginManager: Watcher} action checks every saved project in the background each time it is opened, in a new tab or in place of another project, about a second after it has loaded. Switching between project tabs is not an opening and checks nothing; closing a project and opening it again checks it again. Reloading a project in the tab it is already in is not detected: run {\i Check project} instead. A project that has never been saved is not checked. When the check finds nothing to list, no window opens. While plugins are being installed, the projects you open are checked once the install has ended. A check that fails writes the error to the REAPER console and does not stop the watcher.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The {\i ReaperPluginManager: Check project} action checks the current project on demand and always answers: the summary window, or a message \u8212- "All N plugins are installed.", "The project uses no plugins.", "Save the project first." for a project never saved, or that the project file cannot be read. When the only missing plugins are ones not in the catalogue and that group is switched off, the message counts them and says why they are not listed.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The summary window\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 One summary window lists everything the check found. Its heading names the project file and how many of its plugins are not installed. The findings are sorted into groups, each title carrying its count, and empty groups are left out:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b To install} \u8212- the catalogue has an installer for your platform. Each plugin is listed once, as {\i Name (Vendor)} with the maintainer's note, however many instances the project holds.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b No installer for Windows} (or {\b macOS}) \u8212- the catalogue knows the plugin, but has no installer for your platform.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Not in the catalogue} \u8212- no catalogue entry matches the plugin, listed with its format and number of instances. Ask the maintainer to add it. This group can be switched off in the settings ({\f1 notify_unknown}).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Instances to replace by hand} \u8212- instances that will stay offline even after installing, because their format cannot be loaded here, each with the reason. See below.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Activation pending} \u8212- installed plugins whose licence activation you skipped; they stay listed until you confirm the activation. Each has an {\i Activate} button that opens the activation window for that plugin ({\i Activating licences} below); when it closes, the summary comes back without the plugins you confirmed.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The list scrolls with the mouse wheel, the arrow keys, Page Up, Page Down, Home and End, and nothing is cut short. At the bottom, {\b Install N plugins} \u8212- shown only when something can be installed \u8212- closes the window and starts installing every plugin under {\i To install}; {\b Close}, or Escape, closes it and installs nothing. A new check replaces a summary window that is still open.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Why an instance can need replacing by hand\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The manager never modifies a project, so an instance whose format cannot be loaded on your machine stays offline whatever is installed. You replace it yourself, in REAPER, with a format you have. This happens in two cases:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b The format does not exist on your platform.} An AU instance on Windows, or a DX instance on macOS, can never load there. When the catalogue can install the plugin, it also appears under {\i To install}: installing gives you the formats your platform loads, and you swap the instance for one of them.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b The plugin is installed, but not in this format.} A VST2 instance in a project, on a machine where the catalogue's plugin is installed only as VST3, stays offline: the catalogue recognises the plugin as installed, so there is nothing to install, and the instance must be swapped for the VST3.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Formats loaded on Windows: VST2, VST3, CLAP, LV2 and DX. On macOS: VST2, VST3, AU, CLAP and LV2.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 When the server cannot be reached\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Every check fetches the catalogue from the server and keeps a copy of it on your machine. When the server cannot be reached, or the catalogue on it cannot be read, the check uses the cached copy, so a project can still be checked offline, and a banner under the summary's heading says so and why: "The server catalogue could not be used, so the cached one was." followed by the reason. The copy belongs to the server address it came from: after you change the address, it is not used. With no server and no cached copy, the check finds no catalogue, nothing is offered for installing, and the banner reads "No catalogue is available, so nothing can be installed." with the reason.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Installing plugins\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 When you agree to install the plugins the summary offers, the manager downloads and installs them in the background, so REAPER stays usable while they install. One install runs at a time, and a failure stops only the plugin it hit; the others go on.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The progress window\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A progress window lists every plugin of the run with where it stands: queued, downloading, verifying, installing, installed (in green) or failed (in red, with the reason underneath). Closing the window does not stop the install: when the run ends, the window opens again with the final summary. When nothing is heard from the installer 30 seconds after the start, every plugin fails with "the installer helper did not start".\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 One administrator prompt\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A run asks for administrator rights at most once, however many plugins it installs:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Windows} \u8212- one administrator prompt when the run starts. Refusing it fails every plugin of the run with "administrator permission denied".\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b macOS} \u8212- only packages need administrator rights. They are installed together after every other plugin of the run, behind one password prompt. Cancelling it fails each package with "administrator password not entered"; the plugins installed before it stay installed.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The final summary\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 When the run ends, the window shows how many plugins were installed and how many failed, with the reason for each failure. Closing it hands over to licence activation for the installed plugins that need it ({\i Activating licences} below).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Restart and reopen\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 REAPER detects new plugins only when it starts. When at least one plugin was installed, the manager asks you to restart REAPER. After the restart, the project you were working on reopens on its own once REAPER has finished starting, unless it is already open or its file is gone. If an installed plugin still does not appear, rescan in REAPER: {\i Preferences > Plug-ins > VST > Re-scan}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Activating licences\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Every plugin is activated with your own licence and your own vendor account. The group's server holds installers only, never licence keys, serials or vendor accounts, and the manager never shares, uploads or bypasses an activation: it shows you how each plugin is activated, opens the vendor's app or page, and remembers what you have not confirmed yet. It cannot check that a plugin is really activated, so it takes your word for it.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The activation window\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 After an install run, once you close its final summary, the activation window walks you through the installed plugins whose catalogue entry names an activation method, one step at a time. Plugins activated in the same vendor app share one step; any other plugin has a step of its own. Each step names the plugin or plugins, how they are activated \u8212- in the vendor app, with your serial number, or by signing in to your vendor account \u8212- and the maintainer's instructions, with three buttons:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Activate} \u8212- opens what the activation needs: the vendor app when it is installed where the catalogue expects it, otherwise its download page; the vendor's page for a serial or a sign-in. When you have saved the plugin's serial ({\i Saving a serial} below), it is also copied to the clipboard, ready to paste. A line under the step says what was opened, or why nothing was.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Done} \u8212- you have activated it: the plugins of the step are no longer pending, and the next step opens.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Later} \u8212- you will activate it another time: the plugins stay pending, and the next step opens.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Closing the window, or pressing Escape, leaves every step you have not marked Done pending. When the window closes, the manager goes on to its restart message.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Activation pending\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 A plugin stays "activation pending" from the moment it enters the activation window until you press Done for it. Whenever a check finds a project using a pending plugin, the summary window lists it under {\b Activation pending} with an {\i Activate} button that opens the activation window for that plugin again ({\i The summary window} above). The reminder cannot be switched off: it ends when you confirm the activation.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Saving a serial\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 When you press Done on a plugin activated with a serial number, the manager offers to save the serial on your machine, in a masked field; Cancel, or an empty field, saves nothing, and the offer is not made again once a serial is saved. A saved serial makes a reactivation faster: Activate copies it to the clipboard. It is kept in your system's secret store, as the server password is ({\i The server password} below) \u8212- on Windows encrypted for your Windows account, under the {\f1 secrets} folder beside {\f1 config.ini}; on macOS in your default Keychain, as an item named {\f1 ReaperPluginManager-serial} with the plugin's catalogue id as its account. It is never written to a file in clear, never put on a command line, and never sent anywhere. When the secret store cannot be used, the serial is not saved or copied, and the manager says why.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Settings\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The settings live in {\f1 config.ini}, in the {\f1 ReaperPluginManager} folder of REAPER's resource path ({\i Options > Show REAPER resource path in explorer/finder}). The Setup action writes the server address, user, TLS level and automatic check; set the other keys by editing the file, which keeps every key and comment Setup does not change. A missing key, or a value the manager does not accept, takes its default. Comments start with {\f1 ;} or {\f1 #}.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 | Section | Key | Values | Default | | --- | --- | --- | --- | | {\f1 [server]} | {\f1 url} | The server address, starting with its scheme, such as {\f1 ftps://example.com/plugins/}; a missing final {\f1 /} is added | empty | | {\f1 [server]} | {\f1 user} | The server account's user name; empty connects anonymously | empty | | {\f1 [server]} | {\f1 tls} | {\f1 required} (the connection must be encrypted), {\f1 try} (encrypted when the server offers it) or {\f1 off} | {\f1 required} | | {\f1 [server]} | {\f1 insecure} | {\f1 1} accepts a server certificate that is not trusted, such as a self-signed one; {\f1 0} refuses it | {\f1 0} | | {\f1 [install]} | {\f1 vst2_dir} | Windows only, optional: the folder where VST2 {\f1 .dll} files unpacked from a zip installer are put. Empty skips them: the VST3 and CLAP versions are installed and the install window names the VST2 files left out | empty | | {\f1 [check]} | {\f1 auto} | {\f1 1} checks every project when it is opened; {\f1 0} checks only on demand | {\f1 1} | | {\f1 [check]} | {\f1 notify_unknown} | {\f1 1} lists the plugins that are not in the catalogue; {\f1 0} hides that group | {\f1 1} |\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The server password\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The server password is never written to {\f1 config.ini}. Setup keeps it in your system's secret store: on Windows encrypted for your Windows account, under the {\f1 secrets} folder beside {\f1 config.ini}; on macOS in your default Keychain, as an item named {\f1 ReaperPluginManager:<server host>}. The manager reads it once per REAPER session and hands it to {\f1 curl} through a credentials file that exists only while a transfer runs, so it never appears on a command line. A password cannot contain spaces, tabs or line breaks.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Each machine uses one server account, for checking projects, installing and publishing alike. Members use a read-only account; the maintainer uses an account that can write, and a write attempted with a read-only account fails with the server's own error.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Licence\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 ReaperPluginManager is licensed under the GNU General Public License v3.0. The full text is in {\field{\*\fldinst{HYPERLINK "LICENSE"}}{\fldrslt{\ul
+{\f1 LICENSE}
+}}}
+.\par}
+}
+]]></description>
+  </metadata>
+</index>
