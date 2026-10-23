@@ -188,7 +188,7 @@ secret_get() {
   local host=$1 user=$2 helpers out line
   helpers="$script_dir/../../../Scripts/ReaperPluginManager/helpers"
   if [ ! -d "$helpers" ]; then
-    helpers="$(dirname "$data")/Scripts/ReaperPluginManager/helpers"
+    helpers="$(dirname "$data")/Scripts/ReaperPluginManager/Scripts/ReaperPluginManager/helpers"
   fi
   if [ "$platform" = windows ]; then
     local store="$data/secrets/$(to_hex "$SERVICE_PREFIX$host
