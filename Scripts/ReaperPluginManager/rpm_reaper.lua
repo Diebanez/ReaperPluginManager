@@ -2410,6 +2410,17 @@ local function entry_label(entry)
   return vendor ~= "" and (name .. " (" .. vendor .. ")") or name
 end
 
+-- `entry_label` of an entry offered for install, with "unmanaged installer"
+-- when `unmanaged`, then the maintainer's note.
+local function offer_label(entry, unmanaged)
+  local text = entry_label(entry)
+  if unmanaged then
+    text = text .. " — unmanaged installer"
+  end
+  local note = text_of(entry.note)
+  return note ~= "" and (text .. " — " .. note) or text
+end
+
 -- `Name (Vendor) [FORMAT] ×instances` of a classified reference item.
 local function ref_label(item)
   local _, base = core.split_name(item.ref.name)
@@ -2435,12 +2446,7 @@ local function summary_groups(result, show_unknown)
 
   local to_install = {}
   for _, it in ipairs(g.installable) do
-    local note = text_of(it.entry.note)
-    local text = entry_label(it.entry)
-    if core.catalogue.unmanaged(it.entry, result.platform) then
-      text = text .. " — unmanaged installer"
-    end
-    to_install[#to_install + 1] = { text = note ~= "" and (text .. " — " .. note) or text }
+    to_install[#to_install + 1] = { text = offer_label(it.entry, core.catalogue.unmanaged(it.entry, result.platform)) }
   end
   add("To install", to_install)
 
@@ -2508,11 +2514,10 @@ local function summary_rows(groups, width)
   return rows
 end
 
--- The bottom buttons, right-aligned: "Install N plugins" when anything is
--- installable, then "Close".
-local function summary_buttons(state)
+-- The rectangles of the bottom buttons, right-aligned: "Install N plugins"
+-- only when `n` > 0, then "Close".
+local function install_buttons(n)
   local labels = {}
-  local n = #state.result.groups.installable
   if n > 0 then
     labels[#labels + 1] = { key = "install", label = ("Install %d plugin%s"):format(n, n == 1 and "" or "s") }
   end
@@ -2525,6 +2530,12 @@ local function summary_buttons(state)
     x = x - 8
   end
   return rects
+end
+
+-- The summary's bottom buttons: "Install N plugins" when anything is
+-- installable, then "Close".
+local function summary_buttons(state)
+  return install_buttons(#state.result.groups.installable)
 end
 
 local function hit_rect(rects, mx, my)
@@ -2851,6 +2862,346 @@ function M.check.show(result)
   end
   open_summary_window(state)
   summary_loop(state)
+  return true
+end
+
+---------------------------------------------------------------------------
+-- Catalogue browser: every catalogue plugin with its state here, a search
+-- field and ticks, handing the ticked plugins to an install run with no
+-- project to reopen.
+---------------------------------------------------------------------------
+
+M.browse = {}
+
+-- The refusal while an install run is in progress, in any script.
+M.browse.RUNNING_MESSAGE = "An install is already running. Try again when it has finished."
+
+local BROWSE_TITLE = "ReaperPluginManager - Browse catalogue"
+local BROWSE_W = 600
+local CHECKBOX_W = 22
+local SEARCH_H = 26
+
+-- The open browser, or nil: { platform, source, reason, rows, heading,
+-- search, shown, ticked, lines, lines_key, scroll, page, rects, window,
+-- pressed, was_down }.
+local browser = nil
+
+-- Lists the installed plugins, fetches the catalogue and builds its rows.
+-- Returns { catalogue, source, reason, platform, rows }: `catalogue` is nil
+-- when none could be used (`source` "none", `reason` says why), otherwise
+-- `rows` are its `browse.rows` on this platform.
+function M.browse.load()
+  local p = platform()
+  local installed = M.check.installed()
+  local catalogue, source, reason = M.catalogue.fetch()
+  return {
+    catalogue = catalogue,
+    source = source,
+    reason = reason,
+    platform = p,
+    rows = catalogue and core.browse.rows(catalogue, installed, p) or {},
+  }
+end
+
+local function browse_heading(rows)
+  local installed, installable = 0, 0
+  for _, row in ipairs(rows) do
+    if row.state == "installed" then
+      installed = installed + 1
+    elseif row.state == "installable" then
+      installable = installable + 1
+    end
+  end
+  return ("%s in the catalogue: %d installed, %d installable")
+    :format(count_of(#rows, "plugin", "plugins"), installed, installable)
+end
+
+local function row_id(row)
+  return tostring(row.entry.id)
+end
+
+-- The ticked installable rows, every one of them whatever the search shows.
+local function ticked_rows(state)
+  local items = {}
+  for _, row in ipairs(state.rows) do
+    if row.state == "installable" and state.ticked[row_id(row)] then
+      items[#items + 1] = row
+    end
+  end
+  return items
+end
+
+local function set_search(state, text)
+  state.search = text
+  state.shown = core.browse.filter(state.rows, text)
+  state.scroll = 0
+  state.lines = nil
+end
+
+-- The scrolling lines of the shown rows wrapped to `width`, each { text, row,
+-- status }: a row's first line carries its checkbox, or its `status` when it
+-- is not installable. Rebuilt only when the width or the search changes.
+local function browse_lines(state, width)
+  local key = width .. "\n" .. state.search
+  if state.lines and state.lines_key == key then
+    return state.lines
+  end
+  local not_here = "no installer for " .. (PLATFORM_NAMES[state.platform] or "this platform")
+  local lines = {}
+  for _, row in ipairs(state.shown) do
+    local status = row.state == "installed" and "installed" or row.state == "no_installer" and not_here or nil
+    local w = width - CHECKBOX_W - (status and gfx.measurestr(status) + 12 or 0)
+    for i, text in ipairs(wrap(offer_label(row.entry, row.unmanaged), w)) do
+      lines[#lines + 1] = { text = text, row = row, first = i == 1, status = i == 1 and status or nil }
+    end
+  end
+  state.lines, state.lines_key = lines, key
+  return lines
+end
+
+-- Draws the search field from `top`, `width` wide, showing the end of the
+-- search text when it does not fit. Returns the y below it.
+local function draw_search(state, width, top)
+  gfx.set(0.1, 0.1, 0.11)
+  gfx.rect(PAD, top, width, SEARCH_H, 1)
+  gfx.set(0.35, 0.35, 0.38)
+  gfx.rect(PAD, top, width, SEARCH_H, 0)
+  local _, th = gfx.measurestr("Ag")
+  gfx.y = top + (SEARCH_H - th) / 2
+  gfx.x = PAD + 8
+  if state.search == "" then
+    gfx.set(0.5, 0.5, 0.52)
+    gfx.drawstr("Type to search by name")
+  else
+    local text = state.search
+    while #text > 0 and gfx.measurestr(text .. "|") > width - 16 do
+      text = text:sub(2)
+    end
+    gfx.set(0.92, 0.92, 0.94)
+    gfx.drawstr(text .. "|")
+  end
+  return top + SEARCH_H + 8
+end
+
+-- Draws the window and returns its clickable rectangles: the bottom buttons
+-- and the visible lines of installable rows.
+local function draw_browser(state)
+  local width = gfx.w - 2 * PAD
+  gfx.set(0.15, 0.15, 0.16)
+  gfx.rect(0, 0, gfx.w, gfx.h, 1)
+
+  gfx.setfont(2, "Arial", 18, string.byte("b"))
+  gfx.set(0.92, 0.92, 0.94)
+  local top = draw_lines(wrap(state.heading, width), PAD) + 4
+  gfx.setfont(1, "Arial", 15)
+  top = draw_catalogue_banner(state.source, state.reason, width, top) + 4
+  top = draw_search(state, width, top)
+
+  local rects = install_buttons(#ticked_rows(state))
+  local bottom = rects[1].y - 8
+  local _, th = gfx.measurestr("Ag")
+  local lh = th + 6
+  local list_w = width - SCROLLBAR_W - 6
+  local lines = browse_lines(state, list_w)
+  local visible = math.max(1, math.floor((bottom - top) / lh))
+  local max_scroll = math.max(0, #lines - visible)
+  state.page = visible
+  state.scroll = math.max(0, math.min(state.scroll, max_scroll))
+
+  if #lines == 0 then
+    gfx.set(0.6, 0.6, 0.62)
+    gfx.x, gfx.y = PAD, top + 3
+    gfx.drawstr("No plugin matches the search.")
+  end
+
+  local mx, my = gfx.mouse_x, gfx.mouse_y
+  local hover_row = nil
+  if mx >= PAD and mx < PAD + list_w and my >= top and my < top + visible * lh then
+    local line = lines[state.scroll + math.floor((my - top) / lh) + 1]
+    hover_row = line and line.row.state == "installable" and line.row or nil
+  end
+
+  for i = 1, visible do
+    local line = lines[state.scroll + i]
+    if not line then
+      break
+    end
+    local y = top + (i - 1) * lh
+    local row = line.row
+    if row.state == "installable" then
+      rects[#rects + 1] = { key = "row:" .. row_id(row), row = row, x = PAD, y = y, w = list_w, h = lh }
+      if row == hover_row then
+        gfx.set(0.21, 0.21, 0.23)
+        gfx.rect(PAD, y, list_w, lh, 1)
+      end
+      if line.first then
+        local box = 12
+        local bx, by = PAD + 2, y + math.floor((lh - box) / 2)
+        gfx.set(0.7, 0.7, 0.72)
+        gfx.rect(bx, by, box, box, 0)
+        if state.ticked[row_id(row)] then
+          gfx.set(0.45, 0.75, 0.95)
+          gfx.rect(bx + 3, by + 3, box - 6, box - 6, 1)
+        end
+      end
+      gfx.set(0.88, 0.88, 0.9)
+    else
+      gfx.set(0.6, 0.6, 0.62)
+    end
+    gfx.x, gfx.y = PAD + CHECKBOX_W, y + 3
+    gfx.drawstr(line.text)
+    if line.status then
+      gfx.set(0.55, 0.55, 0.58)
+      gfx.x, gfx.y = PAD + list_w - gfx.measurestr(line.status), y + 3
+      gfx.drawstr(line.status)
+    end
+  end
+
+  draw_scrollbar(PAD + width - SCROLLBAR_W, top, lh, visible, #lines, state.scroll)
+
+  for _, r in ipairs(rects) do
+    if not r.row then
+      draw_button(r, hit_rect({ r }, mx, my) ~= nil)
+    end
+  end
+  gfx.update()
+  return rects
+end
+
+local function open_browser_window(state)
+  local h = math.max(300, math.min(600, 190 + 22 * #state.rows))
+  gfx.quit()
+  gfx.init(BROWSE_TITLE, BROWSE_W, h)
+  state.window = true
+  state.rects, state.pressed, state.was_down = {}, nil, false
+end
+
+local function close_browser(state)
+  if state.window then
+    gfx.quit()
+    state.window = false
+  end
+  if browser == state then
+    browser = nil
+  end
+end
+
+-- Acts on a clicked rectangle. Returns false when the browser's loop ends:
+-- the window was closed or handed to the install run. A row toggles its
+-- tick. "Install" refuses while an install runs and asks first about
+-- unmanaged installers; either keeps the window and its ticks.
+local function browse_click(state, r)
+  if r.key == "close" then
+    close_browser(state)
+    return false
+  elseif r.key == "install" then
+    if M.install.is_running() then
+      reaper.ShowMessageBox(M.browse.RUNNING_MESSAGE, BROWSE_TITLE, 0)
+      return true
+    end
+    local items = ticked_rows(state)
+    if not confirm_unmanaged(items, state.platform, BROWSE_TITLE) then
+      return true
+    end
+    close_browser(state)
+    local ok, err = M.install.start(items, { reopen = false })
+    if not ok then
+      reaper.ShowMessageBox(err, BROWSE_TITLE, 0)
+    end
+    return false
+  elseif r.row then
+    local id = row_id(r.row)
+    state.ticked[id] = not state.ticked[id] or nil
+  end
+  return true
+end
+
+-- One defer cycle: typing, scrolling keys, wheel and clicks, then the
+-- drawing. Printable ASCII appends to the search, Backspace removes its last
+-- character, Escape clears it or, when empty, closes the window. Returns
+-- false when the loop ends.
+local function browse_cycle(state)
+  local c = gfx.getchar()
+  if c < 0 then
+    close_browser(state)
+    return false
+  elseif c == 27 then
+    if state.search == "" then
+      close_browser(state)
+      return false
+    end
+    set_search(state, "")
+  elseif c == 8 then
+    if state.search ~= "" then
+      set_search(state, state.search:sub(1, -2))
+    end
+  elseif c >= 32 and c <= 126 then
+    set_search(state, state.search .. string.char(c))
+  end
+  scroll_input(state, c)
+
+  local down = gfx.mouse_cap & 1 == 1
+  if down and not state.was_down then
+    local r = hit_rect(state.rects, gfx.mouse_x, gfx.mouse_y)
+    state.pressed = r and r.key
+  elseif not down and state.was_down then
+    local r, pressed = hit_rect(state.rects, gfx.mouse_x, gfx.mouse_y), state.pressed
+    state.pressed = nil
+    state.was_down = false
+    if r and r.key == pressed and not browse_click(state, r) then
+      return false
+    end
+  end
+  state.was_down = down
+  state.rects = draw_browser(state)
+  return true
+end
+
+local function browse_loop(state)
+  local function loop()
+    if browser ~= state or not state.window then
+      return
+    end
+    local ok, again = pcall(browse_cycle, state)
+    if not ok then
+      console("browser window failed: " .. one_line(again))
+      close_browser(state)
+      return
+    end
+    if again and browser == state then
+      reaper.defer(loop)
+    end
+  end
+  loop()
+end
+
+-- Opens the browser window for `result`, a `load` result with a catalogue:
+-- a heading counting its plugins, the installed and the installable ones;
+-- the banner stating when the server catalogue was not used and why; the
+-- search field; one row per plugin, `Name (Vendor)` as the summary window
+-- writes it, an installable row with a checkbox toggled by a click anywhere
+-- on it, the others with their state instead. Ticks are kept by entry id
+-- across searches. "Install N plugins" hands every ticked row to
+-- `install.start` with no project to reopen, once the member has confirmed
+-- the one prompt naming every unmanaged installer among them, if any.
+-- Returns true when the window opened, false when there is nothing to list.
+function M.browse.show(result)
+  if type(result) ~= "table" or not result.catalogue or #(result.rows or {}) == 0 then
+    return false
+  end
+  local state = {
+    platform = result.platform,
+    source = result.source,
+    reason = result.reason,
+    rows = result.rows,
+    heading = browse_heading(result.rows),
+    ticked = {},
+    scroll = 0,
+  }
+  set_search(state, "")
+  browser = state
+  open_browser_window(state)
+  browse_loop(state)
   return true
 end
 

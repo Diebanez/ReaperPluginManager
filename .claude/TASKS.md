@@ -573,7 +573,7 @@ Feature: catalogue-browser
 
 ## 58. Catalogue browser window and Browse action
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_Browse.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 55, 56, 57
