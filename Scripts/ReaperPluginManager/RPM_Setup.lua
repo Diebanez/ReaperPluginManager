@@ -1,6 +1,11 @@
 -- @description ReaperPluginManager
 -- @author Diebanez
--- @version 1.0.0
+-- @version 1.1.0
+-- @changelog
+--   Script installers: a catalogue entry can ship a zip with an install
+--   script (install.ps1 / install.sh); such plugins are marked "unmanaged
+--   installer" and installing them asks for confirmation first.
+--   Action names everywhere match the Action list (Script: RPM_....lua).
 -- @about
 --   Lists the plugins a REAPER project uses that are not installed, installs
 --   the ones a group's private catalogue offers, and guides licence
