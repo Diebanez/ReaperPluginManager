@@ -75,6 +75,13 @@ of its own beyond the run.
   `powershell.exe` 5.1 even when the parent environment carries a
   PowerShell 7 module path (no reliance on `Get-FileHash` or
   `Expand-Archive`).
+- Launch constraints, for every console program the Lua side starts on
+  Windows without waiting (this helper, the `cmd.exe` lines of the other
+  features): `reaper.ExecProcess` with timeout `-1` shows a console window.
+  Start `powershell.exe` with timeout `-2` (no wait, minimized) and
+  `-WindowStyle Hidden`, and prefix a `cmd.exe` line with
+  `conhost.exe --headless`; neither shows a window. `--headless` is an
+  undocumented conhost option, present on Windows 10 and 11.
 - Failure contract: every failure becomes a one-line `FAIL` message; the
   script always ends with `DONE` and deletes the credentials file.
 

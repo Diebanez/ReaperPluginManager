@@ -39,9 +39,11 @@ processes.
   previous status file.
 - **Launcher** — prepares the credentials file and options through
   `server-access`, then starts the platform helper without waiting: on
-  Windows `reaper.ExecProcess` with the no-wait timeout running
-  `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden
-  -File …`; on macOS `/bin/bash … >/dev/null 2>&1 &`. Paths are passed
+  Windows `reaper.ExecProcess` with timeout `-2` (no wait, minimized)
+  running `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle
+  Hidden -File …`, which shows no window (launch constraints:
+  [install-helper-windows.md](./install-helper-windows.md#interfaces-and-contracts));
+  on macOS `/bin/bash … >/dev/null 2>&1 &`. Paths are passed
   without a trailing backslash, and arguments with no value are omitted.
 - **Status reader** — parses the status file each `defer` cycle, counting
   only complete lines.
@@ -124,7 +126,5 @@ processes.
 
 ## Open questions
 
-- Whether `reaper.ExecProcess` with the no-wait timeout starts
-  `powershell.exe` with no visible window.
 - Whether REAPER on macOS, with default preferences, detects newly installed
   plugins at startup; on Windows it does.
