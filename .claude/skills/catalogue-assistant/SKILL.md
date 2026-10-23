@@ -216,8 +216,8 @@ other key after them alphabetically), two-space indent, UTF-8 without BOM:
 Before writing, check the entry against the format: `id` non-empty without
 whitespace; `name` non-empty; `match` a non-empty array of strings; each
 installer with a non-empty `file`, a `type` its platform allows (`exe`,
-`msi`, `zip` on Windows; `pkg`, `dmg`, `zip` on macOS), `sha256` of 64 hex
-digits. When `lua` (5.4) is on the PATH, also validate the written file with
+`msi`, `zip`, `script` on Windows; `pkg`, `dmg`, `zip`, `script` on macOS),
+`sha256` of 64 hex digits. When `lua` (5.4) is on the PATH, also validate the written file with
 the tool's own code, from the repository root:
 
 ```
