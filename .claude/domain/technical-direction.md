@@ -46,7 +46,9 @@ elevation.
   installer per platform or one shared package, install options, an optional
   checksum, a note, and the activation method with its link or vendor app.
   It is replaced on the server by upload-then-rename, so members never read
-  a half-written file.
+  a half-written file; where the server's rename will not overwrite, the old
+  file is deleted just before the rename, and a member checking in that
+  instant uses the cached copy.
 - **Local data** — under `<REAPER resource path>/ReaperPluginManager/`:
   settings (`config.ini`), server credentials (a `netrc` file, `chmod 600` on
   macOS), the cached catalogue, job and status files, the download work

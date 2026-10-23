@@ -20,8 +20,8 @@ In scope:
 - The server credentials: storage in the OS secret store, retrieval, and the
   short-lived credentials file a transfer needs.
 - The transfer contract: download, upload (blocking or in the background),
-  safe replace (upload under a temporary name, then rename) and delete, with
-  the common `curl` options derived from the settings.
+  safe replace (upload under a temporary name, then rename into place) and
+  delete, with the common `curl` options derived from the settings.
 - The option set handed to the install helpers, so they transfer exactly as
   the Lua side does.
 
@@ -63,7 +63,13 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
   fail on HTTP/FTP errors, silent with errors shown, follow redirects,
   passive FTP, a timeout, `--ssl-reqd` for `tls=required`, `--ssl` for
   `try`, `--insecure` when the user accepts self-signed certificates. Safe
-  replace = upload as `<name>.uploading`, then rename over `<name>`. Rename
+  replace = upload as `<name>.uploading`, then rename over `<name>`; when
+  that rename fails on an FTP, FTPS or HTTPS server — Windows-hosted FTP
+  servers such as IIS FTP and FileZilla Server refuse a rename over an
+  existing file — delete `<name>` and rename again, as the `file://` move
+  does. A failed replace removes `<name>.uploading`, except when `<name>`
+  was deleted and the second rename failed: it is then the only copy and
+  stays on the server. Rename
   and delete are FTP commands (`RNFR`/`RNTO`, `DELE`) over FTP and FTPS,
   WebDAV `MOVE`/`DELETE` over HTTPS; for `file://` servers upload, rename
   and delete are a copy, a move and a removal.
@@ -103,7 +109,11 @@ Built on Lua ReaScripts, `curl` and the platform secret stores, per
   `handle:poll() → state, bytes_done, bytes_total, err` — `state` is
   `running`, `done` or `failed`.
 - `transfer.replace(local_path, server_path) → ok, err` — the safe replace
-  above; members never observe a partial file.
+  above; members never observe a partial file. Where the delete-and-rename
+  fallback runs, `server_path` is absent between the delete and the second
+  rename, and a download in that instant fails with not found. When the
+  second rename fails, `err` says the new file is on the server as
+  `<name>.uploading`, to be renamed by hand or published again.
 - `transfer.delete(server_path) → ok, err`
 - `transfer.helper_options() → { netrc_path?, tls, insecure }` — for the
   install launch; the caller owns starting the helper.

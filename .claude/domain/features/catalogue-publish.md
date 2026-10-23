@@ -61,7 +61,8 @@ Lua with ReaImGui progress, transfers through `server-access`, per
 - Expects from `server-access`: `upload_async`, `replace`, `delete`, and the
   catalogue fetch from `plugin-catalogue`.
 - Failure contract: upload failure → no catalogue change; catalogue replace
-  failure → no deletions; delete failure → reported orphan only.
+  failure → no deletions, the server catalogue left as `server-access`'s
+  `transfer.replace` contract states; delete failure → reported orphan only.
 
 ## Dependencies
 

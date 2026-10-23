@@ -60,3 +60,6 @@ Next: `/architect <feature>` for one of the six features.
 - ReaImGui is accepted for the maintainer only; members keep zero extensions.
 - GitHub zip rather than ReaPack: every group must also set up its own
   server, so the release ships server setup material beside the scripts.
+- The catalogue replace deletes before renaming where the rename will not
+  overwrite: Windows-hosted FTP servers refuse it, and the brief absence is
+  covered by members' cached catalogue.
