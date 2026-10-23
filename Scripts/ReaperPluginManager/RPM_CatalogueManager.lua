@@ -28,6 +28,7 @@ local COLOURS = {
   added = 0x6FCF6FFF,
   changed = 0xE8C14AFF,
   removed = 0xE06C6CFF,
+  unmanaged = 0xE89A4AFF,
   problem = 0xFF6B6BFF,
   notice = 0xE8C14AFF,
 }
@@ -200,12 +201,19 @@ local PLATFORMS = { "windows", "macos" }
 local SLOT_NAMES = { windows = "Windows", macos = "macOS", shared = "Shared package (Windows and macOS)" }
 
 -- The installer types the form offers per slot; a shared package must suit
--- both platforms.
-local SLOT_TYPES = { windows = { "exe", "msi", "zip" }, macos = { "pkg", "dmg", "zip" }, shared = { "zip" } }
+-- both platforms. A `script` installer is a zip carrying its install
+-- script(s), to which silent-install arguments and a destination do not apply.
+local SLOT_TYPES = {
+  windows = { "exe", "msi", "zip", "script" },
+  macos = { "pkg", "dmg", "zip", "script" },
+  shared = { "zip", "script" },
+}
 
+-- The installer types of each platform; a missing type is derived from the
+-- file extension when it names one of them other than `script`.
 local INSTALLER_TYPES = {
-  windows = { exe = true, msi = true, zip = true },
-  macos = { pkg = true, dmg = true, zip = true },
+  windows = { exe = true, msi = true, zip = true, script = true },
+  macos = { pkg = true, dmg = true, zip = true, script = true },
 }
 
 local DESTINATIONS = { vst3 = true, vst2 = true, clap = true, au = true }
@@ -321,8 +329,8 @@ end
 -- The problems of `entry` that catalogue validation does not see: an
 -- installer whose type does not suit its platform or cannot be told from its
 -- file extension, a destination that is neither a plugin folder nor an
--- absolute path, and an attached local file that is gone. `files` is the
--- draft's installer records.
+-- absolute path on an installer it applies to, and an attached local file
+-- that is gone. `files` is the draft's installer records.
 local function entry_problems(entry, files)
   local out = {}
   local installers = is_table(entry) and is_table(entry.installers) and entry.installers or {}
@@ -335,14 +343,15 @@ local function entry_problems(entry, files)
       local kind = text_of(inst.type)
       if kind == "" then
         local ext = file:match("%.(%w+)$")
-        if not (ext and INSTALLER_TYPES[platform][ext:lower()]) then
+        ext = ext and ext:lower()
+        if not (ext and ext ~= "script" and INSTALLER_TYPES[platform][ext]) then
           out[#out + 1] = label .. ": choose its type, the file extension does not tell it"
         end
       elseif not INSTALLER_TYPES[platform][kind] then
         out[#out + 1] = ('%s: type "%s" is not one of %s'):format(label, kind, table.concat(SLOT_TYPES[platform], ", "))
       end
       local dest = inst.dest
-      if dest ~= nil and dest ~= core.json.null and dest ~= ""
+      if kind ~= "script" and dest ~= nil and dest ~= core.json.null and dest ~= ""
           and not (type(dest) == "string" and (DESTINATIONS[dest] or is_absolute(dest))) then
         out[#out + 1] = ('%s: destination "%s" is not vst3, vst2, clap, au or an absolute path')
           :format(label, tostring(dest))
@@ -386,9 +395,15 @@ local function problems_of(draft)
   return problems
 end
 
+-- True when `entry` has a `script` installer on either platform: an
+-- unmanaged installer members are warned about.
+local function unmanaged(entry)
+  return core.catalogue.unmanaged(entry, "windows") or core.catalogue.unmanaged(entry, "macos")
+end
+
 -- Rebuilds the list rows and counts from `draft`; each row has the entry,
--- its change since the base ("added", "changed", "removed" or nil) and its
--- validation problem.
+-- its change since the base ("added", "changed", "removed" or nil), whether
+-- it has an unmanaged installer and its validation problem.
 local function set_draft(draft)
   local base_by_key = {}
   for _, e in ipairs(plugins_of(draft.base)) do
@@ -411,7 +426,7 @@ local function set_draft(draft)
       change = "changed"
     end
     kept[key] = true
-    rows[#rows + 1] = { entry = e, change = change, problem = problems[i] }
+    rows[#rows + 1] = { entry = e, change = change, unmanaged = unmanaged(e), problem = problems[i] }
     counts.entries = counts.entries + 1
     if change then
       counts[change] = counts[change] + 1
@@ -424,7 +439,7 @@ local function set_draft(draft)
     local key = key_of(e)
     if not kept[key] then
       kept[key] = true
-      rows[#rows + 1] = { entry = e, change = "removed" }
+      rows[#rows + 1] = { entry = e, change = "removed", unmanaged = unmanaged(e) }
       counts.removed = counts.removed + 1
     end
   end
@@ -828,17 +843,19 @@ local function clear_slot(key)
   state.form.dirty = true
 end
 
--- The installer object of `slot`, or nil when it has no file.
+-- The installer object of `slot`, or nil when it has no file. A `script`
+-- installer has no arguments and no destination.
 local function installer_of(slot)
   if trim(slot.file) == "" then
     return nil
   end
   local inst = copy_of(slot.orig)
+  local script = trim(slot.type) == "script"
   inst.file = trim(slot.file)
   inst.type = nonempty(slot.type)
-  inst.args = nonempty(slot.args)
+  inst.args = not script and nonempty(slot.args) or nil
   inst.sha256 = nonempty(slot.sha256)
-  inst.dest = nonempty(slot.dest)
+  inst.dest = not script and nonempty(slot.dest) or nil
   return inst
 end
 
@@ -1115,6 +1132,13 @@ local function draw_row(row, i)
   if row.change then
     ImGui.TextColored(ctx, COLOURS[row.change], row.change)
   end
+  if row.unmanaged then
+    if removed then
+      ImGui.TextDisabled(ctx, "unmanaged installer")
+    else
+      ImGui.TextColored(ctx, COLOURS.unmanaged, "unmanaged installer")
+    end
+  end
   ImGui.TableNextColumn(ctx)
   if row.problem then
     wrapped(row.problem, COLOURS.problem)
@@ -1139,7 +1163,7 @@ local function draw_list(height)
   ImGui.TableSetupColumn(ctx, "Vendor", stretch, 2)
   ImGui.TableSetupColumn(ctx, "Platforms", stretch, 2)
   ImGui.TableSetupColumn(ctx, "Activation", stretch, 1.2)
-  ImGui.TableSetupColumn(ctx, "Change", stretch, 1)
+  ImGui.TableSetupColumn(ctx, "Marks", stretch, 1.4)
   ImGui.TableSetupColumn(ctx, "Problem", stretch, 3)
   ImGui.TableHeadersRow(ctx)
   for i, row in ipairs(state.rows) do
@@ -1200,7 +1224,17 @@ local function draw_import()
   end
 end
 
-local TYPE_LABELS = { [""] = "From the file extension" }
+local TYPE_LABELS = { [""] = "From the file extension", script = "script - a zip carrying an install script" }
+
+-- What the zip of a `script` installer holds at its root, per slot.
+local SCRIPT_HINTS = {
+  windows = "The zip holds install.ps1 at its root, beside the files it installs. "
+    .. "It runs with administrator rights after members are warned: an unmanaged installer.",
+  macos = "The zip holds install.sh at its root, beside the files it installs. "
+    .. "It runs with the member's own rights after members are warned: an unmanaged installer.",
+  shared = "The zip holds install.ps1 and install.sh at its root, beside the files they install. "
+    .. "They run after members are warned: an unmanaged installer.",
+}
 
 local METHOD_LABELS = {
   none = "none - no activation",
@@ -1242,7 +1276,8 @@ local function edited(form, changed)
 end
 
 -- The installer slot `key` of `form`: where its file is, its checksum, and
--- its type, arguments and destination.
+-- its type, arguments and destination, the last two not for a `script`
+-- installer.
 local function draw_slot(form, key)
   local slot = form.slots[key]
   local rv
@@ -1282,6 +1317,11 @@ local function draw_slot(form, key)
   end
   rv, slot.type = combo("Type", slot.type, types, TYPE_LABELS)
   edited(form, rv)
+  if trim(slot.type) == "script" then
+    wrapped(SCRIPT_HINTS[key])
+    ImGui.PopID(ctx)
+    return
+  end
   if key ~= "macos" then
     rv, slot.args = ImGui.InputTextWithHint(ctx, "Silent-install arguments", "Windows switches or MSI properties",
       slot.args)

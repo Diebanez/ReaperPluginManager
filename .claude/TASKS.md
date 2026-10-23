@@ -513,7 +513,7 @@ Feature: project-watcher
 
 ## 52. Script installers and the unmanaged mark in the editor
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua
 Preconditions: 35, 44
