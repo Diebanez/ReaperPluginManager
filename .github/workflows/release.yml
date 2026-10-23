@@ -1,0 +1,71 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  reapack-index:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Fetch repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: master
+        fetch-depth: 0
+    - name: Check that the tag releases exactly the tagged code
+      env:
+        TAG: ${{ github.ref_name }}
+      run: |
+        set -euo pipefail
+        pkg=Scripts/ReaperPluginManager/RPM_Setup.lua
+        dir=Scripts/ReaperPluginManager/
+        fail() { echo "::error::$1"; exit 1; }
+        version_at() {
+          { git show "$1:$pkg" 2>/dev/null || true; } \
+            | sed -n 's/^-- @version[[:space:]]*//p' | head -n 1 | tr -d '[:space:]'
+        }
+
+        tagged=$(git rev-parse --verify "refs/tags/$TAG^{commit}")
+        version=$(version_at "$tagged")
+        [ -n "$version" ] || fail "$pkg at $TAG carries no @version."
+        [ "$TAG" = "v$version" ] || fail "Tag $TAG does not name the @version $version that $pkg carries at the tagged commit."
+        git merge-base --is-ancestor "$tagged" HEAD || fail "The tagged commit is not on master."
+
+        # reapack-index pins a version's sources to the commit that introduced it.
+        intro=""
+        for c in $(git rev-list --reverse "$tagged" -- "$pkg"); do
+          if [ "$(version_at "$c")" = "$version" ]; then intro=$c; break; fi
+        done
+        [ -n "$intro" ] || fail "No commit introduces @version $version."
+        if ! git diff --quiet "$intro" "$tagged" -- "$dir"; then
+          git diff --name-only "$intro" "$tagged" -- "$dir"
+          fail "Files under $dir changed between $intro, which introduced @version $version, and $TAG. Bump @version and tag that commit."
+        fi
+
+        for c in $(git rev-list "$tagged..HEAD" -- "$pkg"); do
+          later=$(version_at "$c")
+          [ "$later" = "$version" ] || fail "master holds a later @version change ($later at $c); release that version instead."
+        done
+        echo "Releasing @version $version, introduced by $intro."
+    - name: Configure git
+      run: |
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898283+github-actions[bot]@users.noreply.github.com'
+    - name: Install Pandoc
+      run: sudo apt-get update -qq && sudo apt-get install -yy pandoc
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+      with:
+        ruby-version: '3.2'
+    - name: Install reapack-index
+      run: gem install reapack-index -v 1.2.6
+    - name: Validate packages
+      run: reapack-index --check
+    - name: Update index.xml
+      run: reapack-index --commit
+    - name: Push the index commit
+      run: git push origin master

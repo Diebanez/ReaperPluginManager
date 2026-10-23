@@ -415,7 +415,7 @@ Preconditions: none
 
 ## 42. Package RPM for ReaPack with a tag-driven index
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/RPM_Setup.lua, Scripts/ReaperPluginManager/RPM_Watcher.lua, Scripts/ReaperPluginManager/RPM_CheckProject.lua, Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/rpm_reaper.lua, .reapack-index.conf, .github/workflows/
 Preconditions: none

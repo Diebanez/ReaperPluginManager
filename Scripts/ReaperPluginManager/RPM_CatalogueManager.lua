@@ -1,3 +1,5 @@
+-- @noindex
+
 -- RPM_CatalogueManager.lua: the "ReaperPluginManager: Catalogue management"
 -- action. The maintainer's ReaImGui window over the local catalogue draft:
 -- every draft entry, what changed since the catalogue the draft started from,

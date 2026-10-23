@@ -1,3 +1,25 @@
+-- @description ReaperPluginManager
+-- @author Diebanez
+-- @version 1.0.0
+-- @about
+--   Lists the plugins a REAPER project uses that are not installed, installs
+--   the ones a group's private catalogue offers, and guides licence
+--   activation. Windows and macOS; run the Setup action first.
+--
+--   Adds four actions: Setup, Watcher, Check project and Catalogue
+--   management (the maintainer's editor, which needs ReaImGui).
+-- @provides
+--   [main] RPM_Watcher.lua
+--   [main] RPM_CheckProject.lua
+--   [main] RPM_CatalogueManager.lua
+--   rpm_core.lua
+--   rpm_reaper.lua
+--   helpers/rpm-install.ps1
+--   helpers/rpm-install.sh
+--   helpers/rpm-secret.ps1
+--   helpers/rpm-secret.sh
+--   helpers/rpm-run-hidden.ps1
+
 -- RPM_Setup.lua: the "ReaperPluginManager: Setup" action. Collects the server
 -- connection in one dialog, validates it, saves the settings and the server
 -- credential, registers the tool's actions, installs the startup hook, starts

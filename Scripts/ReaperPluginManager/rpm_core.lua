@@ -1,3 +1,5 @@
+-- @noindex
+
 -- rpm_core.lua: the pure logic of ReaperPluginManager.
 -- No reaper.* calls, so it runs under plain Lua 5.4 outside REAPER.
 

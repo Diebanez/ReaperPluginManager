@@ -1,0 +1,29 @@
+name: check
+on:
+  push:
+    branches: [master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  reapack-index:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Fetch repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+    - name: Install Pandoc
+      run: sudo apt-get update -qq && sudo apt-get install -yy pandoc
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+      with:
+        ruby-version: '3.2'
+    - name: Install reapack-index
+      run: gem install reapack-index -v 1.2.6
+    - name: Validate packages
+      run: reapack-index --check
+    - name: Scan the full history without committing
+      run: reapack-index --no-commit --rebuild
+    - name: Print the resulting index
+      run: cat index.xml

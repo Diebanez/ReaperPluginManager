@@ -1,3 +1,5 @@
+-- @noindex
+
 -- rpm_reaper.lua: the REAPER side of ReaperPluginManager.
 
 local script_dir = debug.getinfo(1, "S").source:match("^@(.*[\\/])")

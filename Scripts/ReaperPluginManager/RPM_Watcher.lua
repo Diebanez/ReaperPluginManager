@@ -1,3 +1,5 @@
+-- @noindex
+
 -- RPM_Watcher.lua: the "ReaperPluginManager: Watcher" action, started from
 -- REAPER's startup hook. Checks every saved project each time it is opened,
 -- in the background, while automatic checking is on.
