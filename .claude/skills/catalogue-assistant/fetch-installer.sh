@@ -218,12 +218,12 @@ open_credentials() {
   [ -n "$user" ] && [ -n "$host" ] || return 0
   answer=$(secret_get "$host" "$user")
   case "$answer" in
-    NOTFOUND) fail "$store_name: no password stored for user $user; run Setup." ;;
+    NOTFOUND) fail "$store_name: no password stored for user $user; run Script: RPM_Setup.lua." ;;
     ERROR*) fail "$store_name: ${answer#ERROR }" ;;
   esac
   hex=$(printf '%s' "${answer#OK}" | tr -d ' ')
   case "$hex" in
-    ''|*[!0-9a-f]*) fail "$store_name: the stored password is empty or unreadable; run Setup." ;;
+    ''|*[!0-9a-f]*) fail "$store_name: the stored password is empty or unreadable; run Script: RPM_Setup.lua." ;;
   esac
   while [ -n "$hex" ]; do
     fmt="$fmt\\x${hex:0:2}"
@@ -382,12 +382,12 @@ cmd_fetch() {
 
   data=$(data_dir) || fail "this script works only on Windows (Git Bash) and macOS"
   cfg="$data/config.ini"
-  [ -f "$cfg" ] || fail "no settings at $(to_native "$cfg"); run Setup in REAPER first."
+  [ -f "$cfg" ] || fail "no settings at $(to_native "$cfg"); run Script: RPM_Setup.lua in REAPER first."
   settings=$(read_server_settings "$cfg")
   { IFS= read -r url; IFS= read -r user; IFS= read -r tls; IFS= read -r insecure; } <<EOF
 $settings
 EOF
-  [ -n "$url" ] || fail "No server is configured; run Setup."
+  [ -n "$url" ] || fail "No server is configured; run Script: RPM_Setup.lua."
   case "$url" in */) ;; *) url="$url/" ;; esac
   tls=$(lower "$tls")
   case "$tls" in required|try|off) ;; *) tls=required ;; esac

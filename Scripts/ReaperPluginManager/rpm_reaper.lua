@@ -250,13 +250,13 @@ local function read_password(host, user)
   if not line then
     return nil, store_error(err)
   elseif line == "NOTFOUND" then
-    return nil, store_error("no password stored for user " .. user .. "; run Setup."), true
+    return nil, store_error("no password stored for user " .. user .. "; run Script: RPM_Setup.lua."), true
   elseif line:match("^ERROR") then
     return nil, store_error(line:match("^ERROR (.*)$") or line)
   end
   local password = from_hex(line:match("^OK%s*(%x*)$") or "")
   if password == "" then
-    return nil, store_error("the stored password is empty; run Setup.")
+    return nil, store_error("the stored password is empty; run Script: RPM_Setup.lua.")
   end
   cache[key] = password
   return password
@@ -523,7 +523,7 @@ local function server()
   local settings = M.settings.load()
   local url = settings.server.url
   if url == "" then
-    return nil, "No server is configured; run Setup."
+    return nil, "No server is configured; run Script: RPM_Setup.lua."
   end
   local kind = core.transfer.kind(url)
   if not kind then
@@ -2160,7 +2160,7 @@ function M.install.start(entries)
   end
   local base_url = M.settings.load().server.url
   if base_url == "" then
-    return false, "No server is configured; run Setup."
+    return false, "No server is configured; run Script: RPM_Setup.lua."
   end
 
   local dir = M.data_dir()
@@ -2909,12 +2909,13 @@ end
 
 M.setup = {}
 
--- The tool's actions in registration order.
+-- The tool's action scripts in registration order; REAPER's Action list
+-- names each "Script: <file>".
 local ACTIONS = {
-  { name = "Watcher", file = "RPM_Watcher.lua" },
-  { name = "Check project", file = "RPM_CheckProject.lua" },
-  { name = "Catalogue management", file = "RPM_CatalogueManager.lua" },
-  { name = "Setup", file = "RPM_Setup.lua" },
+  "RPM_Watcher.lua",
+  "RPM_CheckProject.lua",
+  "RPM_CatalogueManager.lua",
+  "RPM_Setup.lua",
 }
 local WATCHER_FILE = "RPM_Watcher.lua"
 
@@ -2931,20 +2932,20 @@ function M.setup.register_actions()
     return nil, failures
   end
   local present = {}
-  for _, action in ipairs(ACTIONS) do
-    local path = script_dir .. action.file
+  for _, file in ipairs(ACTIONS) do
+    local path = script_dir .. file
     if file_exists(path) then
-      present[#present + 1] = { action = action, path = path }
+      present[#present + 1] = { file = file, path = path }
     else
-      failures[#failures + 1] = ("Cannot register the %s action: %s is missing."):format(action.name, path)
+      failures[#failures + 1] = ("Cannot register the Script: %s action: %s is missing."):format(file, path)
     end
   end
   local watcher_id
   for i, item in ipairs(present) do
     local id = reaper.AddRemoveReaScript(true, 0, item.path, i == #present)
     if not id or id == 0 then
-      failures[#failures + 1] = ("Cannot register the %s action (%s)."):format(item.action.name, item.path)
-    elseif item.action.file == WATCHER_FILE then
+      failures[#failures + 1] = ("Cannot register the Script: %s action (%s)."):format(item.file, item.path)
+    elseif item.file == WATCHER_FILE then
       watcher_id = id
     end
   end

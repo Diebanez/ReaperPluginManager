@@ -4,10 +4,11 @@
 -- @about
 --   Lists the plugins a REAPER project uses that are not installed, installs
 --   the ones a group's private catalogue offers, and guides licence
---   activation. Windows and macOS; run the Setup action first.
+--   activation. Windows and macOS; run *Script: RPM_Setup.lua* first.
 --
---   Adds four actions: Setup, Watcher, Check project and Catalogue
---   management (the maintainer's editor, which needs ReaImGui).
+--   Adds four actions: *Script: RPM_Setup.lua*, *Script: RPM_Watcher.lua*,
+--   *Script: RPM_CheckProject.lua* and *Script: RPM_CatalogueManager.lua*
+--   (the maintainer's catalogue editor, which needs ReaImGui).
 -- @provides
 --   [main] RPM_Watcher.lua
 --   [main] RPM_CheckProject.lua
@@ -174,7 +175,8 @@ local function main()
 
   local watcher_id, failures = rpm.setup.register_actions()
   if #failures == 0 then
-    add("Actions registered: Watcher, Check project, Catalogue management, Setup.")
+    add("Actions registered: Script: RPM_Watcher.lua, Script: RPM_CheckProject.lua, "
+      .. "Script: RPM_CatalogueManager.lua, Script: RPM_Setup.lua.")
   else
     for _, failure in ipairs(failures) do
       add(failure)

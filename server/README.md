@@ -2,8 +2,8 @@
 
 This guide is for the group's maintainer: the person who keeps the plugin
 catalogue on the group's server. The catalogue is the file `manifest.json` at
-the server root, which you curate inside REAPER with the Catalogue management
-action (*Curating the catalogue* below); `manifest.example.json` in this
+the server root, which you curate inside REAPER with the
+**Script: RPM_CatalogueManager.lua** action (*Curating the catalogue* below); `manifest.example.json` in this
 folder is a complete example of its format.
 
 ## Server address

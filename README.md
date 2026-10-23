@@ -39,11 +39,11 @@ from the `-- >>> ReaperPluginManager` line to the
 
 ### For the maintainer
 
-The *Catalogue management* action also needs the ReaImGui extension, which
-ReaPack cannot install as a dependency of this package. Install it yourself
-from *Extensions > ReaPack > Browse packages*, searching for ReaImGui (it
-comes from the ReaTeam Extensions repository, which ReaPack includes by
-default), and restart REAPER.
+The *Script: RPM_CatalogueManager.lua* action also needs the ReaImGui
+extension, which ReaPack cannot install as a dependency of this package.
+Install it yourself from *Extensions > ReaPack > Browse packages*, searching
+for ReaImGui (it comes from the ReaTeam Extensions repository, which ReaPack
+includes by default), and restart REAPER.
 
 The ReaPack package carries only the scripts and their helpers. The server
 setup guide and the example catalogue are in the repository's
@@ -83,8 +83,9 @@ After you confirm the dialog, Setup:
 
 1. saves the settings to `config.ini` and the password to your system's
    secret store;
-2. registers the manager's four actions: *Watcher*, *Check project*,
-   *Catalogue management* and *Setup*;
+2. registers the manager's four actions: *Script: RPM_Watcher.lua*,
+   *Script: RPM_CheckProject.lua*, *Script: RPM_CatalogueManager.lua* and
+   *Script: RPM_Setup.lua*;
 3. adds a block between `-- >>> ReaperPluginManager` and
    `-- <<< ReaperPluginManager` to REAPER's `Scripts/__startup.lua`, creating
    the file when missing and leaving the rest of it as it is, so the watcher
@@ -96,16 +97,16 @@ One message then reports each step, ending with "Connection succeeded: the
 catalogue lists N plugins." or "Connection failed:" and the reason. A step
 that fails is reported and the others still run where they can. A failed
 connection test keeps the saved settings, so you can fix the server side and
-run Setup again to test again.
+run *Script: RPM_Setup.lua* again to test again.
 
 ### Turning automatic checks off
 
-Run Setup and answer `no` to *Automatic check*, or set `auto = 0` in the
-`[check]` section of `config.ini`. A running watcher stops within a second,
-and from the next REAPER start the watcher exits at once; projects are then
-checked only when you run *Check project*. The startup block stays in place.
-To turn checks back on, run Setup and answer `yes`: the watcher starts at
-once.
+Run *Script: RPM_Setup.lua* and answer `no` to *Automatic check*, or set
+`auto = 0` in the `[check]` section of `config.ini`. A running watcher stops
+within a second, and from the next REAPER start the watcher exits at once;
+projects are then checked only when you run *Script: RPM_CheckProject.lua*.
+The startup block stays in place. To turn checks back on, run
+*Script: RPM_Setup.lua* and answer `yes`: the watcher starts at once.
 
 ### Running Setup again
 
@@ -132,7 +133,7 @@ project in the background each time it is opened, in a new tab or in place
 of another project, about a second after it has loaded. Switching between
 project tabs is not an opening and checks nothing; closing a project and
 opening it again checks it again. Reloading a project in the tab it is
-already in is not detected: run *Check project* instead. A project that has
+already in is not detected: run *Script: RPM_CheckProject.lua* instead. A project that has
 never been saved is not checked. When the check finds nothing to list, no
 window opens. While plugins are being installed, the projects you open are
 checked once the install has ended. A check that fails writes the error to
@@ -310,9 +311,9 @@ be used, the serial is not saved or copied, and the manager says why.
 
 The settings live in `config.ini`, in the `ReaperPluginManager` folder of
 REAPER's resource path (*Options > Show REAPER resource path in
-explorer/finder*). The Setup action writes the server address, user, TLS
-level and automatic check; set the other keys by editing the file, which keeps
-every key and comment Setup does not change. A missing key, or a value the
+explorer/finder*). *Script: RPM_Setup.lua* writes the server address, user,
+TLS level and automatic check; set the other keys by editing the file, which
+keeps every key and comment Setup does not change. A missing key, or a value the
 manager does not accept, takes its default. Comments start with `;` or `#`.
 
 | Section | Key | Values | Default |
