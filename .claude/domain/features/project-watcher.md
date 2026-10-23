@@ -17,7 +17,7 @@ activation pending — with the choice to install.
 In scope:
 - The background watcher: single instance, open-event detection, error
   isolation, pausing during an install.
-- The "Check project" action.
+- The on-demand check action, "Script: RPM_CheckProject.lua".
 - Assembling a check: installed list, project scan, catalogue fetch,
   classification, activation-pending reminders.
 - The summary window and the install hand-off.
@@ -73,8 +73,8 @@ Lua ReaScripts with a `gfx` window, per
 
 ## Interfaces and contracts
 
-- Exposed: the REAPER actions "ReaperPluginManager: Watcher" and
-  "ReaperPluginManager: Check project".
+- Exposed: the REAPER actions "Script: RPM_Watcher.lua" and
+  "Script: RPM_CheckProject.lua".
 - Expects: `plugin-catalogue.fetch`, `plugin-detection.*`,
   `licence-activation.pending_for(installed_refs)`,
   `plugin-installation.start(entries)`, `plugin-installation.is_running()`,

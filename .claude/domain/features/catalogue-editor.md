@@ -16,7 +16,8 @@ catalogue file.
 ## Scope and non-goals
 
 In scope:
-- The ReaImGui editor window and the "Catalogue management" action.
+- The ReaImGui editor window and its action,
+  "Script: RPM_CatalogueManager.lua".
 - The local draft: create from the current catalogue, edit, discard.
 - Adding an entry from installed plugins, by hand, or by importing a draft
   entry file.
@@ -81,7 +82,7 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
 
 ## Interfaces and contracts
 
-- Exposed: the REAPER action "ReaperPluginManager: Catalogue management".
+- Exposed: the REAPER action "Script: RPM_CatalogueManager.lua".
 - Expects: `plugin-catalogue` (fetch, validate, encode), `plugin-detection`
   (`group_installed`, `norm`), `catalogue-publish.publish(draft)`.
 - Failure contract: an invalid draft entry blocks Publish and is shown

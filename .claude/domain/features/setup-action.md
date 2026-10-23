@@ -73,7 +73,7 @@ Built on Lua ReaScripts with REAPER's native dialogs, per
 
 ## Interfaces and contracts
 
-- Exposed: the REAPER action "ReaperPluginManager: Setup".
+- Exposed: the REAPER action "Script: RPM_Setup.lua".
 - Expects from `server-access`: settings load, credential store write and
   delete, and its validation limits for passwords.
 - Expects from the catalogue fetch (project-check documents): fetch the
