@@ -49,10 +49,10 @@ Tasks: 16, 17, 18, 19, 50, 51
 
 ## plugin-installation — Install runs, helper contract and reopen
 
-Status: [ITERATED]
+Status: [PLANNED]
 Doc: .claude/domain/features/plugin-installation.md
 Source: product-design.md § Plugin installation
-Tasks: 20, 21, 22, 61, 62
+Tasks: 20, 21, 22, 61, 62, 63, 64, 65
 
 ---
 

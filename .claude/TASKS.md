@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 62
+Last task number: 65
 
 ---
 
@@ -617,6 +617,36 @@ Status: [DONE]
 Target: claude
 Files: README.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/catalogue-browser.md, CLAUDE.md
 Preconditions: 61
+Feature: plugin-installation
+
+---
+
+## 63. Restart helpers
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/helpers/rpm-restart.ps1, Scripts/ReaperPluginManager/helpers/rpm-restart.sh, Scripts/ReaperPluginManager/RPM_Setup.lua, CLAUDE.md
+Preconditions: none
+Feature: plugin-installation
+
+---
+
+## 64. Restart offer and reopening every open project
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 63
+Feature: plugin-installation
+
+---
+
+## 65. Update documentation for feature `plugin-installation`
+
+Status: [MISSING]
+Target: claude
+Files: README.md, server/README.md, CLAUDE.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/catalogue-browser.md
+Preconditions: 63, 64
 Feature: plugin-installation
 
 ---
