@@ -583,7 +583,7 @@ Feature: catalogue-browser
 
 ## 59. Register the Browse action in Setup and the package
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/RPM_Setup.lua
 Preconditions: 58

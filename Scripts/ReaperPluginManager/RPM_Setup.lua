@@ -11,12 +11,14 @@
 --   the ones a group's private catalogue offers, and guides licence
 --   activation. Windows and macOS; run *Script: RPM_Setup.lua* first.
 --
---   Adds four actions: *Script: RPM_Setup.lua*, *Script: RPM_Watcher.lua*,
---   *Script: RPM_CheckProject.lua* and *Script: RPM_CatalogueManager.lua*
+--   Adds five actions: *Script: RPM_Setup.lua*, *Script: RPM_Watcher.lua*,
+--   *Script: RPM_CheckProject.lua*, *Script: RPM_Browse.lua* (installs any
+--   plugin the catalogue offers) and *Script: RPM_CatalogueManager.lua*
 --   (the maintainer's catalogue editor, which needs ReaImGui).
 -- @provides
 --   [main] RPM_Watcher.lua
 --   [main] RPM_CheckProject.lua
+--   [main] RPM_Browse.lua
 --   [main] RPM_CatalogueManager.lua
 --   rpm_core.lua
 --   rpm_reaper.lua
@@ -181,7 +183,7 @@ local function main()
   local watcher_id, failures = rpm.setup.register_actions()
   if #failures == 0 then
     add("Actions registered: Script: RPM_Watcher.lua, Script: RPM_CheckProject.lua, "
-      .. "Script: RPM_CatalogueManager.lua, Script: RPM_Setup.lua.")
+      .. "Script: RPM_Browse.lua, Script: RPM_CatalogueManager.lua, Script: RPM_Setup.lua.")
   else
     for _, failure in ipairs(failures) do
       add(failure)

@@ -3366,6 +3366,7 @@ M.setup = {}
 local ACTIONS = {
   "RPM_Watcher.lua",
   "RPM_CheckProject.lua",
+  "RPM_Browse.lua",
   "RPM_CatalogueManager.lua",
   "RPM_Setup.lua",
 }
