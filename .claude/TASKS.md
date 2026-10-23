@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 40
+Last task number: 43
 
 ---
 
@@ -401,5 +401,32 @@ Target: claude
 Files: CLAUDE.md
 Preconditions: 39
 Feature: catalogue-assistant
+
+---
+
+## 41. License the project under GPL-3.0
+
+Status: [MISSING]
+Target: claude
+Files: LICENSE, README.md
+Preconditions: none
+
+---
+
+## 42. Package RPM for ReaPack with a tag-driven index
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_Setup.lua, Scripts/ReaperPluginManager/RPM_Watcher.lua, Scripts/ReaperPluginManager/RPM_CheckProject.lua, Scripts/ReaperPluginManager/RPM_CatalogueManager.lua, Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/rpm_reaper.lua, .reapack-index.conf, .github/workflows/
+Preconditions: none
+
+---
+
+## 43. Document the ReaPack install and release
+
+Status: [MISSING]
+Target: claude
+Files: README.md, server/README.md, CLAUDE.md, .claude/domain/technical-direction.md, .claude/domain/features/catalogue-assistant.md, .claude/domain/design-process.md
+Preconditions: 42
 
 ---
