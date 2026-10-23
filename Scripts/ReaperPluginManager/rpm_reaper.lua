@@ -1784,7 +1784,7 @@ end
 -- Called by plugin-installation after a run with the entries it installed:
 -- records every entry whose activation method is not `none` as pending, then
 -- opens the walk-through for them. `on_close` runs when the window closes,
--- so installation can then show its restart message; with nothing to
+-- so installation can then open its guided plugin scan; with nothing to
 -- activate it runs at once. Done clears a step's entries from the pending
 -- record and, for a `serial` entry with no saved serial, offers to save one;
 -- Later and closing the window leave them pending. Activate also copies a
@@ -1820,7 +1820,9 @@ end
 ---------------------------------------------------------------------------
 -- Install run: the job for the platform helper, its detached launch, the
 -- progress window that follows the status file, the summary, the hand-off
--- to licence activation, and the project reopened after REAPER restarts.
+-- to licence activation, the guided plugin scan with its offer to reload
+-- the project, and the project reopened after REAPER restarts when the scan
+-- did not detect the new plugins.
 ---------------------------------------------------------------------------
 
 M.install = {}
@@ -1848,8 +1850,9 @@ local STATE_TEXT = {
 
 -- This script's run in progress, or nil: { items, status_path, netrc,
 -- reopen, project, launched, heard, finished, ok, failed, note, window,
--- scroll, pressed, was_down }. Each item is { id, name, entry, installer,
--- state, message }.
+-- scroll, pressed, was_down, recorded, scan }. Each item is { id, name,
+-- entry, installer, state, message }. `recorded` is true once the run wrote
+-- the reopen record; `scan` is the guided scan's state once it opened.
 local install = nil
 
 -- Publishes `state` as the running install to every script: writes the
@@ -1992,6 +1995,45 @@ local function close_button_rect()
   return { label = "Close", x = gfx.w - PAD - BUTTON_W, y = gfx.h - PAD - BUTTON_H, w = BUTTON_W, h = BUTTON_H }
 end
 
+-- Draws `rows` ({ text, r, g, b, indent } each) between `top` and `bottom`,
+-- scrolled by `holder.scroll`, which the mouse wheel moves and the row count
+-- bounds.
+local function draw_rows(holder, rows, top, bottom)
+  local _, lh = gfx.measurestr("Ag")
+  lh = lh + 2
+  local visible = math.max(1, math.floor((bottom - top) / lh))
+  local max_scroll = math.max(0, #rows - visible)
+  if gfx.mouse_wheel ~= 0 then
+    holder.scroll = holder.scroll - (gfx.mouse_wheel > 0 and 3 or -3)
+    gfx.mouse_wheel = 0
+  end
+  holder.scroll = math.max(0, math.min(holder.scroll, max_scroll))
+  for i = 1, visible do
+    local row = rows[holder.scroll + i]
+    if not row then
+      break
+    end
+    gfx.set(row[2], row[3], row[4])
+    gfx.x, gfx.y = PAD + row[5], top + (i - 1) * lh
+    gfx.drawstr(row[1])
+  end
+end
+
+-- Draws each of `rects` ({ label, x, y, w, h }) as a button, lighter under
+-- the mouse.
+local function draw_buttons(rects)
+  local hover = hit(rects, gfx.mouse_x, gfx.mouse_y)
+  for _, r in ipairs(rects) do
+    local shade = r.label == hover and 0.38 or 0.28
+    gfx.set(shade, shade, shade + 0.02)
+    gfx.rect(r.x, r.y, r.w, r.h, 1)
+    gfx.set(0.92, 0.92, 0.94)
+    local tw, th = gfx.measurestr(r.label)
+    gfx.x, gfx.y = r.x + (r.w - tw) / 2, r.y + (r.h - th) / 2
+    gfx.drawstr(r.label)
+  end
+end
+
 local function draw_install(state, button)
   local width = gfx.w - 2 * PAD
   gfx.set(0.15, 0.15, 0.16)
@@ -2018,33 +2060,9 @@ local function draw_install(state, button)
     draw_lines({ "Closing this window does not stop the install." }, gfx.h - PAD - lh)
   end
 
-  local rows = install_rows(state, width)
-  local visible = math.max(1, math.floor((bottom - top) / lh))
-  local max_scroll = math.max(0, #rows - visible)
-  if gfx.mouse_wheel ~= 0 then
-    state.scroll = state.scroll - (gfx.mouse_wheel > 0 and 3 or -3)
-    gfx.mouse_wheel = 0
-  end
-  state.scroll = math.max(0, math.min(state.scroll, max_scroll))
-  for i = 1, visible do
-    local row = rows[state.scroll + i]
-    if not row then
-      break
-    end
-    gfx.set(row[2], row[3], row[4])
-    gfx.x, gfx.y = PAD + row[5], top + (i - 1) * lh
-    gfx.drawstr(row[1])
-  end
-
+  draw_rows(state, install_rows(state, width), top, bottom)
   if button then
-    local hover = hit({ button }, gfx.mouse_x, gfx.mouse_y)
-    local shade = hover and 0.38 or 0.28
-    gfx.set(shade, shade, shade + 0.02)
-    gfx.rect(button.x, button.y, button.w, button.h, 1)
-    gfx.set(0.92, 0.92, 0.94)
-    local tw, th = gfx.measurestr(button.label)
-    gfx.x, gfx.y = button.x + (button.w - tw) / 2, button.y + (button.h - th) / 2
-    gfx.drawstr(button.label)
+    draw_buttons({ button })
   end
   gfx.update()
 end
@@ -2057,15 +2075,230 @@ local function open_install_window(state)
   state.pressed, state.was_down = nil, false
 end
 
+-- The guided scan, after licence activation. Its helpers are scoped to this
+-- block, which only defines `open_scan`, to stay within Lua's limit of 200
+-- locals in the module's main chunk.
+local open_scan
+do
+  local SCAN_TITLE = "ReaperPluginManager - Detecting new plugins"
+  local SCAN_W = 520
+  local SCAN_POLL = 1
+  local SCAN_TIMEOUT = 180
+  local FX_BROWSER_ACTION = 40271 -- View: Show FX browser window
+  local SCAN_HINT = "In the FX browser, choose \"Scan for new plugins\": in its FX menu, "
+    .. "or by right-clicking its filter field. Each plugin below is marked detected once REAPER sees it."
+
+  -- Re-reads REAPER's installed plugins and marks detected each installed
+  -- item whose entry `core.present_entries` finds through the scan's match
+  -- index, built from the run's installed entries only. Once every item is
+  -- detected the scan is ready and the run's reopen record is deleted.
+  local function poll_scan(state)
+    local scan = state.scan
+    scan.polled = reaper.time_precise()
+    local present = core.present_entries(M.check.installed(), scan.lookup)
+    local all = true
+    for _, item in ipairs(scan.items) do
+      if present[item.entry] then
+        scan.detected[item.entry] = true
+      elseif not scan.detected[item.entry] then
+        all = false
+      end
+    end
+    if all then
+      scan.ready = true
+      if state.recorded then
+        reaper.DeleteExtState(EXT_SECTION, REOPEN_KEY, true)
+      end
+    end
+  end
+
+  -- One line per installed plugin, waiting or detected, wrapped to `width`.
+  local function scan_rows(scan, width)
+    local rows = {}
+    for _, item in ipairs(scan.items) do
+      local detected = scan.detected[item.entry]
+      local text = item.name .. " — " .. (detected and "detected" or "waiting for the scan")
+      for _, line in ipairs(wrap(text, width)) do
+        if detected then
+          rows[#rows + 1] = { line, 0.45, 0.8, 0.45, 0 }
+        else
+          rows[#rows + 1] = { line, 0.85, 0.85, 0.87, 0 }
+        end
+      end
+    end
+    return rows
+  end
+
+  -- The scan window's buttons, right-aligned, in the current font: none
+  -- while an item is waiting; once ready, "Reload project" and "Not now" for
+  -- a run with a project to reload, "Close" otherwise.
+  local function scan_buttons(scan)
+    if not scan.ready then
+      return {}
+    end
+    local labels = scan.reload and { "Reload project", "Not now" } or { "Close" }
+    local rects, x = {}, gfx.w - PAD
+    for i = #labels, 1, -1 do
+      local w = math.max(BUTTON_W, gfx.measurestr(labels[i]) + 24)
+      x = x - w
+      table.insert(rects, 1, { label = labels[i], x = x, y = gfx.h - PAD - BUTTON_H, w = w, h = BUTTON_H })
+      x = x - 8
+    end
+    return rects
+  end
+
+  local function draw_scan(scan, buttons)
+    local width = gfx.w - 2 * PAD
+    gfx.set(0.15, 0.15, 0.16)
+    gfx.rect(0, 0, gfx.w, gfx.h, 1)
+
+    gfx.setfont(2, "Arial", 18, string.byte("b"))
+    gfx.set(0.92, 0.92, 0.94)
+    local heading = scan.ready and "The new plugins are ready to use" or "Scan for the new plugins"
+    local top = draw_lines(wrap(heading, width), PAD) + 4
+    gfx.setfont(1, "Arial", 15)
+    local text = SCAN_HINT
+    if scan.ready then
+      text = scan.reload and "REAPER detected every new plugin. Reload the project so they load in it."
+        or "REAPER detected every new plugin."
+    end
+    gfx.set(0.8, 0.8, 0.82)
+    top = draw_lines(wrap(text, width), top) + 8
+
+    local _, lh = gfx.measurestr("Ag")
+    lh = lh + 2
+    local bottom
+    if #buttons > 0 then
+      bottom = buttons[1].y - 8
+    else
+      local note = wrap("Closing this window falls back to restarting REAPER.", width)
+      bottom = gfx.h - PAD - #note * lh - 4
+      gfx.set(0.6, 0.6, 0.62)
+      draw_lines(note, bottom + 4)
+    end
+
+    draw_rows(scan, scan_rows(scan, width), top, bottom)
+    draw_buttons(buttons)
+    gfx.update()
+  end
+
+  -- Closes the scan window and ends the run. `restart` first shows the
+  -- restart message, the reopen record kept; `reload` then opens the
+  -- recorded project, once the run has ended, when its file still exists;
+  -- `dismiss` only ends the run.
+  local function end_scan(state, outcome)
+    gfx.quit()
+    if outcome == "restart" then
+      reaper.ShowMessageBox(state.reopen and RESTART_MESSAGE or RESTART_MESSAGE_NO_REOPEN, INSTALL_TITLE, 0)
+    end
+    end_run(state)
+    if outcome == "reload" and state.project ~= "" and file_exists(state.project) then
+      reaper.Main_openProject(state.project)
+    end
+  end
+
+  -- One defer cycle of the guided scan: closing the window (close box or
+  -- Escape) answers "Not now" once ready and gives way to the restart
+  -- message before; about once a second the installed plugins are re-read;
+  -- 3 minutes with an item still waiting give way to the restart message.
+  -- Returns false once the run has ended.
+  local function scan_cycle(state)
+    local scan = state.scan
+    local c = gfx.getchar()
+    if c < 0 or c == 27 then
+      end_scan(state, scan.ready and "dismiss" or "restart")
+      return false
+    end
+    if not scan.ready then
+      if reaper.time_precise() - scan.polled >= SCAN_POLL then
+        poll_scan(state)
+      end
+      if not scan.ready and reaper.time_precise() - scan.started >= SCAN_TIMEOUT then
+        end_scan(state, "restart")
+        return false
+      end
+    end
+    gfx.setfont(1, "Arial", 15)
+    local buttons = scan_buttons(scan)
+    local down = gfx.mouse_cap & 1 == 1
+    if down and not scan.was_down then
+      scan.pressed = hit(buttons, gfx.mouse_x, gfx.mouse_y)
+    elseif not down and scan.was_down then
+      local label, pressed = hit(buttons, gfx.mouse_x, gfx.mouse_y), scan.pressed
+      scan.pressed = nil
+      if label and label == pressed then
+        end_scan(state, label == "Reload project" and "reload" or "dismiss")
+        return false
+      end
+    end
+    scan.was_down = down
+    draw_scan(scan, buttons)
+    return true
+  end
+
+  -- Runs the scan window's defer loop for as long as `state` is this
+  -- script's run. An error in a cycle goes to the REAPER console, closes the
+  -- window and ends the run, the reopen record kept.
+  local function scan_loop(state)
+    local function loop()
+      if install ~= state then
+        return
+      end
+      local ok, again = pcall(scan_cycle, state)
+      if not ok then
+        console("guided scan failed: " .. one_line(again))
+        gfx.quit()
+        end_run(state)
+        return
+      end
+      if again then
+        reaper.defer(loop)
+      end
+    end
+    loop()
+  end
+
+  -- Opens the guided-scan window for `items`, the run's installed items, and
+  -- shows REAPER's FX browser unless it is already shown, since its toggle
+  -- action would close it. The member runs the scan from the FX browser:
+  -- REAPER has no action or API that runs it.
+  function open_scan(state, items)
+    local entries = {}
+    for _, item in ipairs(items) do
+      entries[#entries + 1] = item.entry
+    end
+    local now = reaper.time_precise()
+    state.scan = {
+      items = items,
+      lookup = core.catalogue.index({ plugins = entries }),
+      detected = {},
+      reload = state.reopen and state.project ~= "",
+      started = now,
+      polled = now - SCAN_POLL,
+      scroll = 0,
+      was_down = false,
+    }
+    gfx.quit()
+    gfx.init(SCAN_TITLE, SCAN_W, math.max(260, math.min(520, 190 + 22 * #items)))
+    if reaper.GetToggleCommandState(FX_BROWSER_ACTION) == 0 then
+      reaper.Main_OnCommand(FX_BROWSER_ACTION, 0)
+    end
+    scan_loop(state)
+  end
+end
+
 -- After the summary closes: the installed entries go to licence activation,
--- and when its walk-through closes, a run that installed anything asks for
--- the restart, recording the project to reopen first unless it was started
--- without one. The run ends there.
+-- and when its walk-through closes, a run that installed anything records
+-- the project to reopen, unless it was started without one, and opens the
+-- guided scan, which ends the run once the member answers its reload offer
+-- or it gives way to the restart message. A run with nothing installed ends
+-- there.
 local function hand_off(state)
-  local installed = {}
+  local installed, entries = {}, {}
   for _, item in ipairs(state.items) do
     if item.state == "ok" then
-      installed[#installed + 1] = item.entry
+      installed[#installed + 1] = item
+      entries[#entries + 1] = item.entry
     end
   end
   local ended = false
@@ -2074,15 +2307,22 @@ local function hand_off(state)
       return
     end
     ended = true
-    if #installed > 0 then
-      if state.reopen and state.project ~= "" then
-        reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
-      end
-      reaper.ShowMessageBox(state.reopen and RESTART_MESSAGE or RESTART_MESSAGE_NO_REOPEN, INSTALL_TITLE, 0)
+    if #installed == 0 then
+      end_run(state)
+      return
     end
-    end_run(state)
+    if state.reopen and state.project ~= "" then
+      reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
+      state.recorded = true
+    end
+    local ok, err = pcall(open_scan, state, installed)
+    if not ok then
+      console("guided scan failed: " .. one_line(err))
+      gfx.quit()
+      end_run(state)
+    end
   end
-  local ok, err = pcall(M.activation.after_install, installed, after_activation)
+  local ok, err = pcall(M.activation.after_install, entries, after_activation)
   if not ok then
     console("licence activation failed: " .. one_line(err))
     after_activation()
@@ -2157,9 +2397,11 @@ end
 -- Starts an install run for `entries`, the installable items of a check
 -- (each { entry, installer }), and opens the progress window. Writes the job,
 -- deletes the old status file, prepares the transfer options and launches
--- the platform helper without waiting. `opts.reopen == false` starts a run
--- with no project to reopen after the restart; without it the active
--- project is recorded for reopening. Returns true once the window is open
+-- the platform helper without waiting. The run ends after the summary,
+-- licence activation and, when anything was installed, the guided scan.
+-- `opts.reopen == false` starts a run with no project to reload after the
+-- guided scan or to reopen after a restart; without it the active project
+-- is recorded for both. Returns true once the window is open
 -- (a helper that cannot be launched is reported there and in the summary),
 -- or false and the reason nothing started: a run already in progress in any
 -- script, nothing to install, no server, or the job or credentials file.
@@ -2235,8 +2477,9 @@ function M.install.start(entries, opts)
 end
 
 -- True while a run is in progress in any script: this script's own, from
--- start until its summary, licence activation and restart message are done,
--- or another script's, whose install heartbeat is younger than 3 s.
+-- start until its summary, licence activation and guided scan (with its
+-- reload offer or restart message) are done, or another script's, whose
+-- install heartbeat is younger than 3 s.
 function M.install.is_running()
   if install ~= nil then
     return true

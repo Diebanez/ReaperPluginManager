@@ -603,7 +603,7 @@ Feature: catalogue-browser
 
 ## 61. Guided plugin scan after an install run
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: none
