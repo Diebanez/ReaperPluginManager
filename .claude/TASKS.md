@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 53
+Last task number: 60
 
 ---
 
@@ -528,5 +528,75 @@ Target: claude
 Files: server/README.md
 Preconditions: 52, 44, 45, 46, 47, 48, 49
 Feature: catalogue-editor
+
+---
+
+## 54. Shared presence detection and platform installer lookup
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: none
+Feature: catalogue-browser
+
+---
+
+## 55. Cross-script install running state and start without reopen
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: none
+Feature: catalogue-browser
+
+---
+
+## 56. Shared unmanaged confirmation and list primitives
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: none
+Feature: catalogue-browser
+
+---
+
+## 57. Catalogue browser rows and search filter
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua
+Preconditions: 54
+Feature: catalogue-browser
+
+---
+
+## 58. Catalogue browser window and Browse action
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_Browse.lua, Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: 55, 56, 57
+Feature: catalogue-browser
+
+---
+
+## 59. Register the Browse action in Setup and the package
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua, Scripts/ReaperPluginManager/RPM_Setup.lua
+Preconditions: 58
+Feature: catalogue-browser
+
+---
+
+## 60. Update documentation for feature `catalogue-browser`
+
+Status: [MISSING]
+Target: claude
+Files: README.md, CLAUDE.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/project-watcher.md, .claude/domain/features/plugin-detection.md, .claude/domain/features/plugin-catalogue.md, .claude/domain/features/setup-action.md, .claude/domain/technical-direction.md
+Preconditions: 54, 55, 56, 57, 58, 59
+Feature: catalogue-browser
 
 ---
