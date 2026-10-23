@@ -31,12 +31,13 @@ with no revenue model.
 
 **PHASE 7 — technical write-back: done — process complete**
 
-- product-design.md — the product, maintainer and member roles, three key
-  flows, design decisions, six high-level features.
+- product-design.md — the product, maintainer and member roles, four key
+  flows, design decisions, seven high-level features.
 - technical-direction.md — Lua in REAPER, PowerShell/bash helpers, `curl`,
   ReaImGui for the catalogue editor, ReaPack release, two open decisions.
 
-Next: `/architect <feature>` for one of the six features.
+Next: `/architect` for the catalogue browser, the one feature not yet
+architected.
 
 ## Decisions worth keeping
 

@@ -26,7 +26,8 @@ maintainer is also a member on their own machines.
 ### Members
 
 Bandmates who open shared projects on their own Windows or Mac machine. They
-reach for the tool the moment a project opens with plugins offline. Their
+reach for the tool the moment a project opens with plugins offline, or when
+they want a plugin from the catalogue before any project needs it. Their
 access to the server is read-only, with credentials the maintainer provides.
 Without the tool, they find missing plugins one at a time from REAPER's
 offline-plugin warnings, hunt down installers and ask the maintainer.
@@ -64,6 +65,29 @@ offline-plugin warnings, hunt down installers and ask the maintainer.
    reason. When anything was installed, the member restarts REAPER; the
    project reopens on its own once REAPER has started.
 
+### Installing from the catalogue (member)
+
+1. The member runs the browse action. The tool fetches the latest catalogue,
+   falling back to the last one fetched when the server cannot be reached,
+   and says so.
+2. One window lists every plugin in the catalogue with its state on this
+   machine: installed (judged the same way the project check judges it),
+   installable on this platform, or no installer for this platform. Plugins
+   whose installer is an unmanaged install script are marked as such. Typing
+   in a search field narrows the list by name.
+3. The member ticks the installable plugins they want and chooses to install
+   them. Installed plugins and plugins with no installer for this platform
+   are shown but cannot be ticked: browsing never reinstalls or updates a
+   plugin.
+4. When any ticked plugin uses an unmanaged installer, one warning names
+   them all before anything starts. The install then runs exactly as in the
+   project flow — in the background with the progress window, at most one
+   administrator prompt, licence activation for each plugin that needs it,
+   and a final summary. When anything was installed, the member restarts
+   REAPER; no project reopens, since none was involved.
+5. While an install is already running, the browse action refuses to start
+   and says so.
+
 ### First-time setup (member and maintainer)
 
 The user runs the setup action once and enters the server address, user,
@@ -100,8 +124,9 @@ replace an installer with a newer version, or remove a plugin.
 - Only saved projects are checked, each time one is opened, with all
   findings in a single window.
 - Installing never blocks REAPER. New plugins become visible only after a
-  restart, because REAPER cannot rescan plugins while running, so the tool
-  reopens the project after the restart.
+  restart, because REAPER cannot rescan plugins while running, so when the
+  install started from a project, the tool reopens that project after the
+  restart.
 - The tool never modifies a project: instances that cannot load on this
   platform are reported for manual replacement.
 - A plugin that no silent installer or plain plugin files can install ships
@@ -155,22 +180,40 @@ marked as such. With something installable, it asks whether to download and
 install now, warning first, in one prompt, about every unmanaged installer
 it would run; otherwise the summary is informational only.
 
+### Catalogue browser
+
+Serves members, in the install-from-the-catalogue flow, up to the point they
+agree to install. An action fetches the latest catalogue, falling back to the
+last one fetched when the server cannot be reached, and opens one window
+listing every plugin the catalogue offers with its state on this machine:
+installed (judged as the project check judges it), installable on this
+platform, or no installer for this platform. Plugins whose installer is an
+unmanaged install script are marked as such, and a search field narrows the
+list as the member types. The member ticks installable plugins and installs
+them; installed plugins and plugins with no installer here are shown but
+cannot be ticked, so the browser never reinstalls or updates. Before
+starting, it warns in one prompt about every unmanaged installer it would
+run. The install itself is Plugin installation and Licence activation, as
+from a project check, ending with the restart message and no project to
+reopen. The action refuses to start while an install is in progress.
+
 ### Plugin installation
 
-Serves members, in the open-a-project flow, from the moment they agree to
-install. Downloads and installs run in the background while REAPER stays
+Serves members from the moment they agree to install, whether from a project
+check or from the catalogue browser. Downloads and installs run in the background while REAPER stays
 usable; a progress window shows each plugin as queued, downloading,
 verifying, installing, installed or failed, and closing it does not stop
 the run. A run asks for administrator rights at most once (once on Windows,
 one password on macOS). A failure stops only the plugin it hit. At the end a
 summary lists what was installed and what failed with the reason; when
-anything was installed it tells the user to restart REAPER, and the project
-reopens on its own after the restart.
+anything was installed it tells the user to restart REAPER, and, when the
+run started from a project check, the project reopens on its own after the
+restart.
 
 ### Licence activation
 
-Serves members, in the open-a-project flow after installation, and on every
-later project check. For each newly installed plugin whose catalogue entry
+Serves members after every installation, whether started from a project
+check or from the catalogue browser, and on every later project check. For each newly installed plugin whose catalogue entry
 names an activation method — vendor app, serial number or vendor sign-in —
 it shows how that plugin is activated, opens the vendor's app or page, and
 asks the user to confirm once they have activated it with their own licence.
