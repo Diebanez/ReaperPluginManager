@@ -40,8 +40,9 @@ All paths are relative to the repository root.
 - `RPM_Watcher.lua`, `RPM_CheckProject.lua`, `RPM_CatalogueManager.lua`,
   `RPM_Setup.lua` — the four REAPER actions, beside the two modules above.
 - `Scripts/ReaperPluginManager/helpers/` — `rpm-install.ps1` (Windows) and
-  `rpm-install.sh` (macOS) install helpers, and the `rpm-secret.*` OS
-  secret-store helpers.
+  `rpm-install.sh` (macOS) install helpers, `rpm-run-hidden.ps1` (runs a
+  Windows background `cmd.exe` line with no console window), and the
+  `rpm-secret.*` OS secret-store helpers.
 - `server/` — the example catalogue and the server setup guide;
   `README.md` — the member-facing guide.
 
@@ -56,8 +57,8 @@ two talk only through the job file (`job.tsv`, input) and the status file
 - The server password lives only in the OS secret store; curl receives it
   through a short-lived `netrc` file (`--netrc-file`), never on a command
   line.
-- `rpm-install.ps1` targets Windows PowerShell 5.1 and is ASCII-only;
-  `rpm-install.sh` targets bash 3.2. Their platform pitfalls are stated in
+- `rpm-install.ps1` and `rpm-run-hidden.ps1` target Windows PowerShell 5.1
+  and are ASCII-only; `rpm-install.sh` targets bash 3.2. Their platform pitfalls are stated in
   `.claude/domain/features/install-helper-windows.md` and
   `install-helper-macos.md`; read them before touching the helpers or the
   process launch code.

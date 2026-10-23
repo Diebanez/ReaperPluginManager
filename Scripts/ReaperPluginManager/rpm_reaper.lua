@@ -383,7 +383,7 @@ end
 
 -- The prefixes of the transient files a crash can leave in the data folder:
 -- credentials files, secret hand-offs, curl error output, background upload
--- status files, catalogue downloads and cache writes, draft writes and
+-- status and line files, catalogue downloads and cache writes, draft writes and
 -- pending-record writes.
 local TRANSIENT_PREFIXES = { "netrc", "secret", "curl", "upload", "catalogue", "draft", "activation" }
 
@@ -722,15 +722,25 @@ end
 
 -- Starts curl with `args` without waiting; its error output and progress
 -- meter go to `status`, followed by `EXIT <code>` (`EXIT -` on Windows
--- failure) when it ends. On Windows it runs under `conhost.exe --headless`,
--- so no console window shows. Returns true when it started.
+-- failure) when it ends. On Windows the cmd line goes to a line file that
+-- the hidden `rpm-run-hidden.ps1` runs with no console window. Returns true
+-- when it started.
 local function launch_background(args, status)
   if platform() == "windows" then
-    local q = core.win_quote(status)
-    local cmd = 'conhost.exe --headless cmd.exe /d /s /c "'
-      .. core.transfer.command(CURL.windows, args, "windows")
-      .. " && (echo EXIT 0)>>" .. q .. " || (echo EXIT -)>>" .. q .. '"'
-    return reaper.ExecProcess(cmd, -1) ~= nil
+    local q = core.win_quote
+    local line = core.transfer.command(CURL.windows, args, "windows")
+      .. " && (echo EXIT 0)>>" .. q(status) .. " || (echo EXIT -)>>" .. q(status)
+    local line_file = temp_path("upload")
+    if not write_private(line_file, line) then
+      return false
+    end
+    local cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "
+      .. q(helpers_dir() .. "rpm-run-hidden.ps1") .. " -LineFile " .. q(line_file)
+    if reaper.ExecProcess(cmd, -2) == nil then
+      os.remove(line_file)
+      return false
+    end
+    return true
   end
   local cmd = "( " .. core.transfer.command(CURL.macos, args, "macos")
     .. ' >/dev/null 2>&1; echo "EXIT $?" >> ' .. sh_quote(status) .. " ) >/dev/null 2>&1 &"
@@ -1470,13 +1480,13 @@ local function copy_serial(step)
 end
 
 -- Opens `target`, an application path or a URL, without waiting: Windows
--- `start "" "<target>"` under `conhost.exe --headless` (no console window),
--- macOS `open -a "<app>"` when `as_app`, else `open "<url>"`. Returns true
--- when the opener started.
+-- `explorer.exe "<target>"` (a GUI program, so no console window), macOS
+-- `open -a "<app>"` when `as_app`, else `open "<url>"`. Returns true when the
+-- opener started.
 local function open_target(target, as_app)
   local p = platform()
   if p == "windows" then
-    local cmd = 'conhost.exe --headless cmd.exe /d /c start "" "' .. (target:gsub('"', "")) .. '"'
+    local cmd = 'explorer.exe "' .. (target:gsub('"', "")) .. '"'
     return reaper.ExecProcess(cmd, -1) ~= nil
   elseif p == "macos" then
     local cmd = (as_app and "open -a " or "open ") .. sh_quote(target) .. " >/dev/null 2>&1"
