@@ -225,9 +225,11 @@ Each installer object holds:
 
 - `file` (required) — the installer's path, relative to the server root and
   written with `/`, such as `acme/AcmeCompressor-2.1.0-win.exe`.
-- `type` — how the file is installed: `exe`, `msi` or `zip` on Windows,
-  `pkg`, `dmg` or `zip` on macOS. When it is left out, the file extension
-  decides, so set it only for a file whose extension is not one of these.
+- `type` — how the file is installed: `exe`, `msi`, `zip` or `script` on
+  Windows, `pkg`, `dmg`, `zip` or `script` on macOS. When it is left out, the
+  file extension decides among the others — never `script`, so a script
+  installer always names its `type`; set it otherwise only for a file whose
+  extension is not one of these.
 - `args` — Windows only: the installer's silent-install switches for an
   `exe`, such as `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`, or the extra
   properties for an `msi`.
@@ -239,13 +241,25 @@ Each installer object holds:
   type; *Installers on Windows* and *Installers on macOS* below list the
   folders of each platform.
 
+An installer of type `script` has the plugin installed by a script of yours
+rather than by an installer or by copying plugin files to their folders. Its
+`file` is a zip holding, at its root, `install.ps1` for a `windows` installer
+or `install.sh` for a `macos` installer, plus the files the script installs.
+`sha256` covers the zip, and `args` and `dest` do not apply.
+
+An entry with a `script` installer is an unmanaged installer on that
+platform: a script from the group's server that runs with administrator
+rights on Windows and with the member's own rights on macOS. Members are
+warned before one is installed.
+
 ### One package for both platforms
 
 When one file installs the plugin on both Windows and macOS — typically a zip
 holding the plugin for each — name the same `file` under both `windows` and
 `macos`, as the `acme-reverb` entry of `manifest.example.json` does and the
 entry form's *One package shared by both platforms* does. The file is stored
-once on the server.
+once on the server. A shared package may be of type `script` when its zip
+holds both `install.ps1` and `install.sh`.
 
 ### Activation
 
