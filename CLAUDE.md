@@ -87,11 +87,18 @@ editor. The skill is the maintainer's own aid and not part of the release, so
 ## Releasing
 
 RPM is released as a ReaPack package whose metadata is the header of
-`Scripts/ReaperPluginManager/RPM_Setup.lua`. To release a version:
+`Scripts/ReaperPluginManager/RPM_Setup.lua`. A release is either a beta,
+`<next>-beta.<n>` (`1.5.0-beta.1`, `1.5.0-beta.2`, …), for testing through
+ReaPack before members get it, or a stable `<next>` (`1.5.0`). ReaPack
+treats a version containing letters as a pre-release and installs it only
+where pre-releases are enabled for the package, and orders `1.5.0` above
+`1.5.0-beta.2` above `1.5.0-beta.1`. There is one branch, `master`: a stable
+release ships everything on it, so while a beta is out the next stable is
+that beta's version. To release either kind:
 
 1. In the last commit that touches `Scripts/ReaperPluginManager/`, bump
    `@version` in that header and add an `@changelog`.
-2. Tag that commit `v<version>`.
+2. Tag that commit `v<version>` (`v1.5.0-beta.1`, `v1.5.0`).
 3. Push `master` and the tag. The release workflow checks that the tag names
    the header's version at that commit, then commits the regenerated
    `index.xml` to `master`.

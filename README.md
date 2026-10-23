@@ -39,6 +39,15 @@ leaves Setup's block in REAPER's `Scripts/__startup.lua`: delete it by hand,
 from the `-- >>> ReaperPluginManager` line to the
 `-- <<< ReaperPluginManager` line (*What Setup does* below).
 
+### Beta versions
+
+New versions can be published as betas first, such as `1.5.0-beta.1`, so
+they can be tried before everyone gets them. ReaPack installs betas only
+where you ask for them: in *Extensions > ReaPack > Browse packages*,
+right-click the ReaperPluginManager package and choose *Enable pre-releases
+(bleeding-edge)*, then synchronise. Choose it again to stop: you stay on the
+beta you have until the next stable version, which replaces it.
+
 ### For the maintainer
 
 The *Script: RPM_CatalogueManager.lua* action also needs the ReaImGui
