@@ -67,7 +67,7 @@ Tasks: 23, 24, 25, 46, 47
 
 ## install-helper-macos — macOS install helper
 
-Status: [ITERATED]
+Status: [PLANNED]
 Doc: .claude/domain/features/install-helper-macos.md
 Source: product-design.md § Plugin installation
 Tasks: 26, 27, 28, 48, 49
