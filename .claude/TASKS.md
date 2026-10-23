@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 60
+Last task number: 62
 
 ---
 
@@ -598,5 +598,25 @@ Target: claude
 Files: README.md, CLAUDE.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/project-watcher.md, .claude/domain/features/plugin-detection.md, .claude/domain/features/plugin-catalogue.md, .claude/domain/features/setup-action.md, .claude/domain/technical-direction.md
 Preconditions: 54, 55, 56, 57, 58, 59
 Feature: catalogue-browser
+
+---
+
+## 61. Guided plugin scan after an install run
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_reaper.lua
+Preconditions: none
+Feature: plugin-installation
+
+---
+
+## 62. Update documentation for feature `plugin-installation`
+
+Status: [MISSING]
+Target: claude
+Files: README.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/catalogue-browser.md, CLAUDE.md
+Preconditions: 61
+Feature: plugin-installation
 
 ---
