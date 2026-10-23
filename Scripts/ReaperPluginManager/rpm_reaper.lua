@@ -2401,6 +2401,9 @@ local function summary_groups(result, show_unknown)
   for _, it in ipairs(g.installable) do
     local note = text_of(it.entry.note)
     local text = entry_label(it.entry)
+    if core.catalogue.unmanaged(it.entry, result.platform) then
+      text = text .. " — unmanaged installer"
+    end
     to_install[#to_install + 1] = { text = note ~= "" and (text .. " — " .. note) or text }
   end
   add("To install", to_install)
@@ -2633,13 +2636,49 @@ local function reopen_summary(state)
   summary_loop(state)
 end
 
+-- What an unmanaged installer's script runs with, by platform.
+local UNMANAGED_RIGHTS = {
+  windows = "with administrator rights",
+  macos = "on this Mac with your user's rights",
+}
+
+-- True when the installable entries of `result` may be installed: at once
+-- when none has an unmanaged installer on its platform, otherwise once the
+-- member confirms one prompt naming every such plugin.
+local function confirm_unmanaged(result)
+  local names = {}
+  for _, it in ipairs(result.groups.installable) do
+    if core.catalogue.unmanaged(it.entry, result.platform) then
+      names[#names + 1] = entry_label(it.entry)
+    end
+  end
+  if #names == 0 then
+    return true
+  end
+  local rights = UNMANAGED_RIGHTS[result.platform] or "on this computer"
+  local text
+  if #names == 1 then
+    text = ("%s uses an unmanaged installer: a script from your group's server that runs %s."):format(names[1], rights)
+  else
+    text = ("These plugins use an unmanaged installer: a script from your group's server that runs %s.\n\n%s")
+      :format(rights, "  " .. table.concat(names, "\n  "))
+  end
+  text = text .. "\n\nContinue only if you trust the server's maintainer."
+  return reaper.ShowMessageBox(text, SUMMARY_TITLE, 1) == 1
+end
+
 -- Acts on a clicked rectangle. Returns false when the summary's loop ends:
 -- the window was closed or handed to the install run or the walk-through.
+-- "Install" asks first about unmanaged installers; declining keeps the
+-- window open and starts nothing.
 local function summary_click(state, r)
   if r.key == "close" then
     close_summary(state)
     return false
   elseif r.key == "install" then
+    if not confirm_unmanaged(state.result) then
+      return true
+    end
     close_summary(state)
     local ok, err = M.install.start(state.result.groups.installable)
     if not ok then
@@ -2729,9 +2768,11 @@ end
 -- installer for this platform, not in the catalogue (only when
 -- `notify_unknown` is on), instances to replace by hand, activation pending
 -- (each with an Activate button that reopens the walk-through for that
--- entry). A banner states when the server catalogue was not used and why.
--- "Install N plugins" hands the installable entries to `install.start` and
--- closes the window. It takes over the script's one `gfx` window: an open
+-- entry); an entry to install whose installer here is an install script is
+-- marked "unmanaged installer". A banner states when the server catalogue
+-- was not used and why. "Install N plugins" hands the installable entries to
+-- `install.start` and closes the window, once the member has confirmed the
+-- one prompt naming every unmanaged installer among them, if any. It takes over the script's one `gfx` window: an open
 -- summary or walk-through is closed first. Returns true when the window
 -- opened, false when the result holds nothing to list.
 function M.check.show(result)

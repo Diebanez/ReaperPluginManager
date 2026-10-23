@@ -493,7 +493,7 @@ Feature: install-helper-macos
 
 ## 50. Unmanaged-installer mark and install warning
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: 17, 44
