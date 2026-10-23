@@ -172,11 +172,17 @@ error, the catalogue unchanged.
    each installer as soon as it is uploaded, so the installers uploaded before
    the failure stay on the server and are not uploaded again when you publish
    again; the one that failed is uploaded again whole.
-4. **Catalogue replace.** Once every upload has succeeded, the catalogue is
-   replaced in one step: the new catalogue is uploaded beside the old one as
-   `manifest.json.uploading`, then renamed over `manifest.json`, so a member
-   never downloads a partial catalogue. When the replace fails, the catalogue
-   on the server is unchanged and no installer file is deleted. The new
+4. **Catalogue replace.** Once every upload has succeeded, the new catalogue
+   is uploaded beside the old one as `manifest.json.uploading`, then renamed
+   over `manifest.json`, so a member never downloads a partial catalogue. On a
+   server whose rename does not overwrite an existing file (IIS FTP and
+   FileZilla Server, for example) the manager deletes `manifest.json` first and
+   renames again; a member checking a project in that instant uses their cached
+   catalogue. When the replace fails, no installer file is deleted, and the
+   catalogue on the server is unchanged — unless the old one was already
+   deleted and the second rename failed: then the new catalogue is on the
+   server only as `manifest.json.uploading`, and the report says so; rename it
+   to `manifest.json` by hand, or publish again. After a replace the new
    catalogue becomes the copy cached on your machine.
 5. **Cleanup.** The manager then deletes every installer file the catalogue
    the draft started from named and the new catalogue does not — the files of

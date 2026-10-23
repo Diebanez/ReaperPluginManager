@@ -706,7 +706,8 @@ function M.transfer.upload(local_path, server_path)
   return blocking(op_upload, local_path, server_path)
 end
 
--- Renames `from` to `to` on the server, replacing `to`. Returns ok, err.
+-- Renames `from` to `to` on the server; whether an existing `to` is replaced
+-- depends on the server. Returns ok, err.
 function M.transfer.rename(from, to)
   return blocking(op_rename, from, to)
 end
