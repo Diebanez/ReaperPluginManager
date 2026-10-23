@@ -436,8 +436,19 @@ On a Mac, the manager installs a `macos` installer according to its `type`:
   is closed afterwards either way.
 - `pkg` — the package is installed with macOS's own installer, for the whole
   machine.
+- `script` — the archive is unpacked and the `install.sh` at its root is run
+  with bash as the member, with the member's own rights and no password. An
+  archive with no `install.sh` at its root fails with "no install.sh in the
+  archive". The installer succeeds only when its `install.sh` exits with code
+  `0`.
 
-Any other type fails with "installer type not supported on macOS".
+Any type other than these four fails with "installer type not supported on
+macOS".
+
+An install script can write only where the member can — the member's
+`~/Library/Audio/Plug-Ins` folders, never system locations such as `/Library`
+or `/Applications`. A plugin that needs to install there ships its vendor
+`pkg` instead.
 
 ### Where plugins are copied
 
@@ -462,9 +473,11 @@ it decides itself where it installs.
 
 ### One password for packages
 
-Packages need administrator rights. The manager installs every other plugin
-of the run first, then all the run's packages together, behind one macOS
-password prompt — asked once per run, however many packages it holds. When
+Only packages need administrator rights. The manager installs every other
+plugin of the run first, script entries included, then all the run's packages
+together, behind one macOS password prompt — asked once per run, however many
+packages it holds, and not at all for a run without a package, such as one
+whose entries are only zips and scripts. When
 the member cancels the prompt, each package fails with "administrator
 password not entered"; the plugins installed before it stay installed.
 
