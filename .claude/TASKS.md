@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 51
+Last task number: 53
 
 ---
 
@@ -508,5 +508,25 @@ Target: claude
 Files: README.md
 Preconditions: 50
 Feature: project-watcher
+
+---
+
+## 52. Script installers and the unmanaged mark in the editor
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/RPM_CatalogueManager.lua
+Preconditions: 35, 44
+Feature: catalogue-editor
+
+---
+
+## 53. Update documentation for feature `catalogue-editor`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 52, 44, 45, 46, 47, 48, 49
+Feature: catalogue-editor
 
 ---
