@@ -503,7 +503,7 @@ Feature: project-watcher
 
 ## 51. Update documentation for feature `project-watcher`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: README.md
 Preconditions: 50

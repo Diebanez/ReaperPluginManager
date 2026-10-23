@@ -155,7 +155,10 @@ out:
 
 - **To install** — the catalogue has an installer for your platform. Each
   plugin is listed once, as *Name (Vendor)* with the maintainer's note,
-  however many instances the project holds.
+  however many instances the project holds. A plugin marked *unmanaged
+  installer* installs through an install script the group's maintainer put
+  on the server, which runs with administrator rights on Windows and with
+  your own user's rights on macOS (*Installing plugins* below).
 - **No installer for Windows** (or **macOS**) — the catalogue knows the
   plugin, but has no installer for your platform.
 - **Not in the catalogue** — no catalogue entry matches the plugin, listed
@@ -213,6 +216,13 @@ When you agree to install the plugins the summary offers, the manager
 downloads and installs them in the background, so REAPER stays usable while
 they install. One install runs at a time, and a failure stops only the plugin
 it hit; the others go on.
+
+When the plugins to install include any marked *unmanaged installer*,
+**Install N plugins** first asks for confirmation, in one prompt naming each
+of them. Continue only if you trust the server's maintainer: their script
+runs on your machine with the rights stated in *The summary window* above.
+Cancelling installs nothing, not even the other plugins, and leaves the
+summary window open.
 
 ### The progress window
 
