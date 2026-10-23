@@ -119,7 +119,4 @@ Lua ReaScripts with a `gfx` window, per
 
 ## Open questions
 
-- Reloading a project in its own tab keeps the same (project, path) pair
-  and is not detected as an open event; whether REAPER exposes a cheap
-  signal for it (a project state change count, or the project pointer
-  changing on reload) — to be checked in REAPER.
+None.

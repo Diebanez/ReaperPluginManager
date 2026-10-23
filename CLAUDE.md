@@ -24,9 +24,8 @@ and `technical-direction.md`, and one document per feature under `features/`.
 - **Platforms:** Windows 10/11 and macOS. On Linux the manager does nothing.
 - **Server:** FTP with explicit TLS, FTPS, HTTPS or a `file://` folder.
 - **Language:** English everywhere — user-facing text, code and comments.
-- **Out of scope:** starting REAPER's plugin scan from a script (the member
-  runs it from the FX browser), JSFX, replacing plugin instances in
-  projects.
+- **Out of scope:** rescanning plugins without a restart, JSFX, replacing
+  plugin instances in projects.
 
 ### Layout
 

@@ -5,9 +5,9 @@ projects. One maintainer keeps a catalogue of plugin installers on the
 group's own private server. When anyone in the group opens a project that
 uses plugins they do not have, the tool lists them, installs what the
 catalogue offers once the user agrees, guides the user through activating
-each plugin's licence with their own account, and guides the user through
-REAPER's plugin scan so the new plugins load without restarting REAPER. It
-is open source, for any band, studio or group that shares
+each plugin's licence with their own account, and restarts REAPER on the
+user's confirmation, reopening the projects that were open. It is open
+source, for any band, studio or group that shares
 REAPER projects across Windows and Mac machines.
 
 Technical foundations (stack, architecture, hosting) are recorded in
@@ -63,11 +63,11 @@ offline-plugin warnings, hunt down installers and ask the maintainer.
    skipped activation leaves the plugin flagged "activation pending", and
    the tool reminds the member each time a project uses it.
 6. A final summary lists what was installed and what failed, with the
-   reason. When anything was installed, the tool opens REAPER's FX browser
-   and asks the member to choose its "Scan for new plugins"; once it sees
-   the new plugins, it offers to reload the project so they load. When the
-   scan does not find them, the member restarts REAPER instead, and the
-   project reopens on its own once REAPER has started.
+   reason. When anything was installed, the tool offers to restart REAPER
+   now: on yes, REAPER quits (asking to save unsaved changes) and starts
+   again, and the projects that were open reopen on their own. On no, it
+   reminds the member to restart, and the project reopens after that
+   restart.
 
 ### Installing from the catalogue (member)
 
@@ -87,9 +87,9 @@ offline-plugin warnings, hunt down installers and ask the maintainer.
    them all before anything starts. The install then runs exactly as in the
    project flow — in the background with the progress window, at most one
    administrator prompt, licence activation for each plugin that needs it,
-   a final summary and the guided scan. Once the scan finds the new plugins
-   they are ready to use; when it does not, the member restarts REAPER. No
-   project reloads or reopens, since none was involved.
+   a final summary and the offer to restart REAPER now. An accepted restart
+   reopens the projects that were open; a declined one reopens nothing,
+   since no project was involved.
 5. While an install is already running, the browse action refuses to start
    and says so.
 
@@ -128,12 +128,11 @@ replace an installer with a newer version, or remove a plugin.
   server, including the shared-folder option that needs no server software.
 - Only saved projects are checked, each time one is opened, with all
   findings in a single window.
-- Installing never blocks REAPER. New plugins become visible after REAPER
-  scans for them. Scripts cannot start that scan, so the tool opens the FX
-  browser, asks the member to run its "Scan for new plugins", and watches
-  for the new plugins; a project the install started from is reloaded once
-  they appear. When they do not appear, a restart is the fallback, and the
-  tool reopens that project after it.
+- Installing never blocks REAPER. New plugins become visible only after a
+  restart, because REAPER cannot rescan plugins while running, so the tool
+  offers to restart REAPER itself and reopens the projects that were open;
+  when the member restarts later instead, it reopens the project the install
+  started from.
 - The tool never modifies a project: instances that cannot load on this
   platform are reported for manual replacement.
 - A plugin that no silent installer or plain plugin files can install ships
@@ -201,8 +200,8 @@ them; installed plugins and plugins with no installer here are shown but
 cannot be ticked, so the browser never reinstalls or updates. Before
 starting, it warns in one prompt about every unmanaged installer it would
 run. The install itself is Plugin installation and Licence activation, as
-from a project check, ending with the guided scan and no project to reload
-or reopen. The action refuses to start while an install is in progress.
+from a project check, ending with the restart offer, with no project of
+its own to reopen. The action refuses to start while an install is in progress.
 
 ### Plugin installation
 
@@ -213,11 +212,10 @@ verifying, installing, installed or failed, and closing it does not stop
 the run. A run asks for administrator rights at most once (once on Windows,
 one password on macOS). A failure stops only the plugin it hit. At the end a
 summary lists what was installed and what failed with the reason. When
-anything was installed it opens REAPER's FX browser, asks the user to choose
-"Scan for new plugins" and waits for the new plugins to appear; when the run
-started from a project check it then offers to reload the project. When they
-do not appear it tells the user to restart REAPER instead, and the project
-reopens on its own after the restart.
+anything was installed it offers to restart REAPER now: on yes REAPER quits,
+asking to save unsaved changes, starts again and reopens the projects that
+were open; on no it reminds the user to restart, and a project the run
+started from reopens on its own after that restart.
 
 ### Licence activation
 

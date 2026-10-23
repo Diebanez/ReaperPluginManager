@@ -3,21 +3,18 @@
 The REAPER side of installing plugins: it turns the member's confirmed list
 into a job for the platform helper, follows the helper's progress without
 blocking REAPER, reports the outcome, hands over to licence activation,
-guides the member through REAPER's plugin scan so the new plugins work
-without a restart, and reloads the project once they do — or reopens it
-after a restart when the scan does not find them. It also owns the contract
-both helpers implement.
+offers to restart REAPER so it detects the new plugins, and reopens the
+projects after the restart. It also owns the contract both install helpers
+implement.
 
 ## Purpose
 
 Implements [product-design.md § Plugin installation](../product-design.md#plugin-installation):
 installs run in the background, a progress window shows each plugin, a run
-asks for administrator rights at most once, and the new plugins become usable
-through a guided scan in the running REAPER, with a restart as the fallback.
-A run started from a project reloads it once the plugins are detected, or
-reopens it on its own after the restart. A run is started from a project by
-`project-watcher` or from the catalogue by `catalogue-browser`, which has no
-project to reload or reopen.
+asks for administrator rights at most once, and REAPER, which detects new
+plugins only when it starts, is restarted on the member's confirmation with
+the projects that were open reopened. A run is started from a project by
+`project-watcher` or from the catalogue by `catalogue-browser`.
 
 ## Scope and non-goals
 
@@ -28,18 +25,15 @@ In scope:
   time across every REAPER script.
 - The progress window and the final summary.
 - The hand-off to licence activation.
-- The guided scan: opening REAPER's FX browser, waiting for the installed
-  plugins to be detected, reloading the project.
-- Reopening the project after restart, when the guided scan does not detect
-  the plugins.
+- The restart offer: quitting REAPER and starting it again through a
+  detached restart helper.
+- Reopening the recorded projects after the restart.
 
 Non-goals:
 - Download and install mechanics — `install-helper-windows`,
   `install-helper-macos`.
 - Deciding what to install — `project-watcher`, `catalogue-browser`.
-- Running the plugin scan itself: REAPER has no action or API for it, only
-  the FX browser's "Scan for new plugins" menu item, which the member
-  chooses.
+- Rescanning plugins without a restart (REAPER has no action or API for it).
 
 ## Architecture
 
@@ -66,46 +60,39 @@ processes.
   reported as not started.
 - **Completion** — at `DONE`: a summary of installed and failed plugins
   with each failure's message; the installed entries go to
-  `licence-activation`; then, when anything was installed, the reopen record
-  is written (none for a run started with no project to reopen) and the
-  guided scan starts. With nothing installed the run ends after the summary.
-- **Guided scan** — a `gfx` window, never a modal message box, because the
-  member works in the FX browser while it is open and REAPER must stay
-  usable:
-  - It opens the FX browser with the main action "View: Show FX browser
-    window", only when that toggle action is off, since running it on an
-    open browser closes it.
-  - The window, "Scan for the new plugins", tells the member to choose "Scan
-    for new plugins" in the FX browser (its FX menu, or a right-click on its
-    filter field) and lists each installed plugin as `Name — waiting for the
-    scan`, or `Name — detected` in green; while a plugin is waiting, a line
-    at the bottom says that closing the window falls back to restarting
-    REAPER.
-  - Each second it re-reads REAPER's installed plugins (`EnumInstalledFX`)
-    and marks an entry detected when `plugin-detection`'s presence step
-    finds it, as the check does.
-  - Every installed entry detected → the reopen record is deleted and the
-    window reads "The new plugins are ready to use". A run with a project to
-    reopen adds "REAPER detected every new plugin. Reload the project so
-    they load in it." and offers "Reload project" and "Not now"; a run with
-    no project says "REAPER detected every new plugin." and offers "Close".
-    Closing the window, or Escape, answers "Not now". The run ends when the
-    member answers, and "Reload project" then opens the recorded project,
-    when its file still exists, with `Main_openProject` (REAPER asks to save
-    unsaved changes as on any open), so its offline FX load and the watcher
-    checks it as on any opening.
-  - The member closes the window (or presses Escape), or 3 minutes pass,
-    with an entry still waiting → the window gives way to the restart
-    message ("Restart REAPER: it detects the new plugins at startup and this
-    project reopens. If a plugin does not appear: Preferences > Plug-ins >
-    VST > Re-scan."), the reopen record stays, and the run ends. A run
-    started with no project to reopen drops the "and this project reopens"
-    clause ("Restart REAPER: it detects the new plugins at startup. If a
-    plugin does not appear: …").
+  `licence-activation`; then, when anything was installed, the restart
+  offer. With nothing installed the run ends after the summary.
+- **Restart offer** — a Yes/No message box: "<N> plugin(s) installed.
+  REAPER detects new plugins only when it starts. Restart REAPER now? The
+  projects open now reopen after the restart." The run ends with the answer.
+  - **Yes** — the reopen record is written with every open project tab that
+    has a file, in tab order with the active one last; the restart helper is
+    launched detached with REAPER's executable; then the main action "File:
+    Quit REAPER" runs. REAPER asks to save unsaved changes as on any quit; a
+    project never saved has no file and is not reopened. When the member
+    cancels the quit, REAPER keeps running, the helper gives up, and the
+    record waits for the next start.
+  - **No** — the restart message as a reminder ("Restart REAPER: it detects
+    the new plugins at startup and this project reopens. If a plugin does
+    not appear: Preferences > Plug-ins > VST > Re-scan."), and a run with a
+    project to reopen records that project alone. A run started with no
+    project to reopen records nothing and drops the "and this project
+    reopens" clause ("Restart REAPER: it detects the new plugins at startup.
+    If a plugin does not appear: …").
+- **Restart helper** — a small platform script, beside the install helpers,
+  started like them without waiting (on Windows hidden through PowerShell,
+  on macOS `/bin/bash … >/dev/null 2>&1 &` under `nohup`), so it outlives
+  REAPER. It polls every 0.5 s until no process runs REAPER's executable,
+  then starts REAPER again (Windows: the `reaper.exe` beside
+  `GetExePath()`; macOS: `open` on the REAPER app bundle). When REAPER is
+  still running after 60 s, it exits without starting anything.
 - **Reopen after restart** — called by the watcher at start: when a reopen
   record exists, it waits 2 s (REAPER finishes loading its own startup
-  project), deletes the record, and opens the recorded project if it is not
-  already the active one and the file still exists.
+  project), deletes the record, and opens each recorded project whose file
+  exists and that is not already open: the first into the current tab when
+  that tab is an empty project that was never saved, the others into new
+  tabs ("File: New project tab", then `Main_openProject`). The recorded
+  active project ends as the selected tab.
 
 ### Helper contract
 
@@ -161,51 +148,44 @@ processes.
   `core.install.parse_status` keeps a `NOTE` on its item as `note` without
   changing the item's state. Deleted before every run.
 - **Work folder** (`work/`) — downloads, per plugin id.
-- **Reopen record** — persistent ExtState `ReaperPluginManager/reopen` = the
-  project path, written when a run with a project to reopen installed
-  anything and deleted when the guided scan detects every installed entry;
-  it stays for the restart otherwise, so quitting REAPER during the scan
-  still reopens the project.
+- **Reopen record** — persistent ExtState `ReaperPluginManager/reopen` = one
+  project path per line, in the order to open them, the one to leave
+  selected last; a single path is a one-line record. Written by the restart
+  offer, deleted by the reopen after the restart.
 - **Install heartbeat** — non-persistent ExtState
   `ReaperPluginManager/install_heartbeat` = the time of the running install's
   last defer cycle, written each cycle from `start` until the run ends and
   then deleted. Every REAPER action runs in its own Lua state, so this is
   how a run is seen by the other scripts.
-- **In memory** — the script's own run, the per-plugin progress state, and
-  during the guided scan each installed entry's detected flag and the
-  scan's start time.
+- **In memory** — the script's own run and the per-plugin progress state.
 
 ## Interfaces and contracts
 
 - `start(entries, opts) → ok, err` — `entries` are install items, each
   `{ entry, installer }`. `opts.reopen == false` starts a run with no
-  project to reopen: no reopen record, no reload offer after the guided
-  scan, and the restart message without its reopen clause; without the
-  option the active project is recorded for reopening. Refuses while
-  `is_running()` is true, so two scripts never share the job and status
-  files.
+  project to reopen: a No to the restart offer records nothing and its
+  restart message has no reopen clause, while a Yes still reopens the
+  projects that were open; without the option a No records the active
+  project. Refuses while `is_running()` is true, so two scripts never share
+  the job and status files.
 - `is_running() → bool` — true for this script's own run, from `start`
-  until its summary, licence activation and guided scan (with its reload
-  offer or restart message) are done, or for another script's run whose
-  install heartbeat is younger than 3 s.
+  until its summary, licence activation and restart offer are done, or for
+  another script's run whose install heartbeat is younger than 3 s.
 - `reopen_after_restart()` — idempotent; does nothing without a record.
+- Restart helper: `rpm-restart.ps1 -Exe <reaper.exe>` on Windows,
+  `rpm-restart.sh <REAPER.app>` on macOS; no output, no status file.
 - Expects: `server-access.helper_options()`,
-  `licence-activation.after_install(installed_entries)`,
-  `plugin-detection`'s `present_entries(installed, lookup)`.
+  `licence-activation.after_install(installed_entries)`.
 - Failure contract: a launch failure or a silent helper is reported in the
-  progress window and the summary; a run with zero successes writes no
-  reopen record and opens no guided scan; a guided scan that does not detect
-  every installed entry falls back to the restart message; an error in a
-  guided-scan cycle goes to the REAPER console, closes the window and ends
-  the run with the reopen record kept.
+  progress window and the summary; a run with zero successes offers no
+  restart and writes no reopen record; a restart helper that cannot be
+  launched is reported in a message, REAPER does not quit, and the record
+  stays for the next start.
 
 ## Dependencies
 
 - `server-access` — credentials file and transfer options for the helper.
-- `plugin-catalogue` — the installer specs and the match index of the
-  entries.
-- `plugin-detection` — presence of the installed entries during the guided
-  scan.
+- `plugin-catalogue` — the installer specs in the entries.
 - `install-helper-windows`, `install-helper-macos` — implement the contract.
 - `licence-activation` — takes over after a run.
 - `project-watcher` — calls `start`, `is_running`, `reopen_after_restart`.
@@ -216,7 +196,6 @@ processes.
 
 - Whether REAPER on macOS, with default preferences, detects newly installed
   plugins at startup; on Windows it does.
-- Whether `EnumInstalledFX` lists plugins added by an FX-browser scan in the
-  same session, and whether the FX browser offers "Scan for new plugins" in
-  the same places on macOS — to be checked in REAPER before the guided scan
-  is relied on.
+- Whether a process REAPER started survives REAPER quitting on both
+  platforms, and which path `GetExePath()` gives on macOS (the app bundle or
+  a folder inside it) — to be checked in REAPER.
