@@ -533,7 +533,7 @@ Feature: catalogue-editor
 
 ## 54. Shared presence detection and platform installer lookup
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua
 Preconditions: none

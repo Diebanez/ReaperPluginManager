@@ -1136,6 +1136,18 @@ function M.catalogue.unmanaged(entry, platform)
   return is_json_object(inst) and has_text(inst.file) and inst.type == "script"
 end
 
+-- The installer object the catalogue entry `entry` has for `platform`
+-- (`windows` or `macos`), or nil when that installer is absent or JSON null
+-- or the entry is malformed. Never raises.
+function M.catalogue.installer(entry, platform)
+  local installers = type(entry) == "table" and entry.installers
+  local inst = type(installers) == "table" and installers[platform] or nil
+  if inst == M.json.null then
+    return nil
+  end
+  return inst
+end
+
 -- Builds the match index of a validated catalogue: `norm(m)` for every match
 -- string `m` of every entry, to that entry; when two entries share a
 -- normalized string the first keeps it. Returns lookup(normalized) → entry or
@@ -1200,6 +1212,20 @@ local function associate(plugin, lookup)
   return nil
 end
 
+-- Returns the set, keyed by entry, of the catalogue entries some plugin of
+-- `installed` (each { name, ident }) associates with through `lookup`. A nil
+-- `lookup` (no catalogue) yields an empty set.
+function M.present_entries(installed, lookup)
+  local present = {}
+  for _, p in ipairs(installed or {}) do
+    local entry = associate(p, lookup)
+    if entry then
+      present[entry] = true
+    end
+  end
+  return present
+end
+
 -- Sorts the missing references into the summary groups for `platform`
 -- (`windows` or `macos`), against the catalogue match index `lookup` (nil
 -- when there is no catalogue, so nothing is installable). With `p` the entry
@@ -1217,24 +1243,14 @@ function M.classify(missing_refs, installed, lookup, platform)
   local result = { installable = {}, no_installer = {}, unknown = {}, replace = {} }
   local loadable = LOADABLE[platform] or {}
 
-  local present = {}
-  for _, p in ipairs(installed or {}) do
-    local entry = associate(p, lookup)
-    if entry then
-      present[entry] = true
-    end
-  end
+  local present = M.present_entries(installed, lookup)
 
   local groups = {}
   for _, ref in ipairs(missing_refs or {}) do
     local format = ref_format(ref)
     local can_load = format ~= nil and loadable[format] == true
     local entry = associate(ref, lookup)
-    local spec = entry and type(entry.installers) == "table"
-      and entry.installers[platform] or nil
-    if spec == M.json.null then
-      spec = nil
-    end
+    local spec = M.catalogue.installer(entry, platform)
     local item = { ref = ref, entry = entry, format = format }
 
     if entry and present[entry] then
