@@ -443,7 +443,7 @@ Feature: plugin-catalogue
 
 ## 45. Update documentation for feature `plugin-catalogue`
 
-Status: [STALE]
+Status: [MISSING]
 Target: claude
 Files: server/README.md
 Preconditions: 44
