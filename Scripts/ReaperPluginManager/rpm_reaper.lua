@@ -722,11 +722,13 @@ end
 
 -- Starts curl with `args` without waiting; its error output and progress
 -- meter go to `status`, followed by `EXIT <code>` (`EXIT -` on Windows
--- failure) when it ends. Returns true when it started.
+-- failure) when it ends. On Windows it runs under `conhost.exe --headless`,
+-- so no console window shows. Returns true when it started.
 local function launch_background(args, status)
   if platform() == "windows" then
     local q = core.win_quote(status)
-    local cmd = 'cmd.exe /d /s /c "' .. core.transfer.command(CURL.windows, args, "windows")
+    local cmd = 'conhost.exe --headless cmd.exe /d /s /c "'
+      .. core.transfer.command(CURL.windows, args, "windows")
       .. " && (echo EXIT 0)>>" .. q .. " || (echo EXIT -)>>" .. q .. '"'
     return reaper.ExecProcess(cmd, -1) ~= nil
   end
@@ -1468,12 +1470,13 @@ local function copy_serial(step)
 end
 
 -- Opens `target`, an application path or a URL, without waiting: Windows
--- `start "" "<target>"`, macOS `open -a "<app>"` when `as_app`, else
--- `open "<url>"`. Returns true when the opener started.
+-- `start "" "<target>"` under `conhost.exe --headless` (no console window),
+-- macOS `open -a "<app>"` when `as_app`, else `open "<url>"`. Returns true
+-- when the opener started.
 local function open_target(target, as_app)
   local p = platform()
   if p == "windows" then
-    local cmd = 'cmd.exe /d /c start "" "' .. (target:gsub('"', "")) .. '"'
+    local cmd = 'conhost.exe --headless cmd.exe /d /c start "" "' .. (target:gsub('"', "")) .. '"'
     return reaper.ExecProcess(cmd, -1) ~= nil
   elseif p == "macos" then
     local cmd = (as_app and "open -a " or "open ") .. sh_quote(target) .. " >/dev/null 2>&1"
