@@ -543,7 +543,7 @@ Feature: catalogue-browser
 
 ## 55. Cross-script install running state and start without reopen
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_reaper.lua
 Preconditions: none

@@ -1828,9 +1828,13 @@ M.install = {}
 local HELPER_START_TIMEOUT = 30
 local REOPEN_KEY = "reopen"
 local REOPEN_DELAY = 2
+local INSTALL_HEARTBEAT_KEY = "install_heartbeat"
+local INSTALL_HEARTBEAT_FRESH = 3
 local INSTALL_TITLE = "ReaperPluginManager - Installing plugins"
 local INSTALL_W = 520
 local RESTART_MESSAGE = "Restart REAPER: it detects the new plugins at startup and this project reopens. "
+  .. "If a plugin does not appear: Preferences > Plug-ins > VST > Re-scan."
+local RESTART_MESSAGE_NO_REOPEN = "Restart REAPER: it detects the new plugins at startup. "
   .. "If a plugin does not appear: Preferences > Plug-ins > VST > Re-scan."
 
 local STATE_TEXT = {
@@ -1842,10 +1846,33 @@ local STATE_TEXT = {
   failed = "failed",
 }
 
--- The run in progress, or nil: { items, status_path, netrc, project,
--- launched, heard, finished, ok, failed, note, window, scroll, pressed,
--- was_down }. Each item is { id, name, entry, installer, state, message }.
+-- This script's run in progress, or nil: { items, status_path, netrc,
+-- reopen, project, launched, heard, finished, ok, failed, note, window,
+-- scroll, pressed, was_down }. Each item is { id, name, entry, installer,
+-- state, message }.
 local install = nil
+
+-- Publishes `state` as the running install to every script: writes the
+-- heartbeat now and once each defer cycle for as long as `state` is this
+-- script's run.
+local function run_heartbeat(state)
+  local function tick()
+    if install ~= state then
+      return
+    end
+    reaper.SetExtState(EXT_SECTION, INSTALL_HEARTBEAT_KEY, ("%.3f"):format(reaper.time_precise()), false)
+    reaper.defer(tick)
+  end
+  tick()
+end
+
+-- Ends `state` as this script's run and removes its heartbeat.
+local function end_run(state)
+  if install == state then
+    install = nil
+    reaper.DeleteExtState(EXT_SECTION, INSTALL_HEARTBEAT_KEY, false)
+  end
+end
 
 -- Starts the platform helper on `job`, `status` and `work` with the transfer
 -- options `opts`, without waiting. Returns true when it started.
@@ -2031,8 +2058,9 @@ local function open_install_window(state)
 end
 
 -- After the summary closes: the installed entries go to licence activation,
--- and when its walk-through closes, a run that installed anything records
--- the project to reopen and asks for the restart. The run ends there.
+-- and when its walk-through closes, a run that installed anything asks for
+-- the restart, recording the project to reopen first unless it was started
+-- without one. The run ends there.
 local function hand_off(state)
   local installed = {}
   for _, item in ipairs(state.items) do
@@ -2047,14 +2075,12 @@ local function hand_off(state)
     end
     ended = true
     if #installed > 0 then
-      if state.project ~= "" then
+      if state.reopen and state.project ~= "" then
         reaper.SetExtState(EXT_SECTION, REOPEN_KEY, state.project, true)
       end
-      reaper.ShowMessageBox(RESTART_MESSAGE, INSTALL_TITLE, 0)
+      reaper.ShowMessageBox(state.reopen and RESTART_MESSAGE or RESTART_MESSAGE_NO_REOPEN, INSTALL_TITLE, 0)
     end
-    if install == state then
-      install = nil
-    end
+    end_run(state)
   end
   local ok, err = pcall(M.activation.after_install, installed, after_activation)
   if not ok then
@@ -2118,7 +2144,7 @@ local function install_loop(state)
       if state.window then
         gfx.quit()
       end
-      install = nil
+      end_run(state)
       return
     end
     if again then
@@ -2131,14 +2157,17 @@ end
 -- Starts an install run for `entries`, the installable items of a check
 -- (each { entry, installer }), and opens the progress window. Writes the job,
 -- deletes the old status file, prepares the transfer options and launches
--- the platform helper without waiting. Returns true once the window is open
+-- the platform helper without waiting. `opts.reopen == false` starts a run
+-- with no project to reopen after the restart; without it the active
+-- project is recorded for reopening. Returns true once the window is open
 -- (a helper that cannot be launched is reported there and in the summary),
--- or false and the reason nothing started: a run already in progress,
--- nothing to install, no server, or the job or credentials file.
-function M.install.start(entries)
-  if install then
+-- or false and the reason nothing started: a run already in progress in any
+-- script, nothing to install, no server, or the job or credentials file.
+function M.install.start(entries, opts)
+  if M.install.is_running() then
     return false, "An install is already running."
   end
+  local reopen = not (type(opts) == "table" and opts.reopen == false)
   local items, by_id = {}, {}
   for _, g in ipairs(entries or {}) do
     if type(g) == "table" and type(g.entry) == "table" and type(g.installer) == "table" then
@@ -2179,23 +2208,25 @@ function M.install.start(entries)
     return false, "Cannot delete the old status file " .. status
   end
   reaper.RecursiveCreateDirectory(work, 0)
-  local opts, err = M.transfer.helper_options()
-  if not opts then
+  local transfer, err = M.transfer.helper_options()
+  if not transfer then
     return false, err
   end
 
   local state = {
     items = items,
     status_path = status,
-    netrc = opts.netrc_path,
-    project = M.check.project_path(),
+    netrc = transfer.netrc_path,
+    reopen = reopen,
+    project = reopen and M.check.project_path() or "",
     launched = reaper.time_precise(),
     heard = false,
     finished = false,
     scroll = 0,
   }
   install = state
-  if not launch_helper(job, status, work, opts) then
+  run_heartbeat(state)
+  if not launch_helper(job, status, work, transfer) then
     fail_run(state, "the installer helper could not be launched")
   end
   open_install_window(state)
@@ -2203,10 +2234,15 @@ function M.install.start(entries)
   return true
 end
 
--- True from start until the run's summary, licence activation and restart
--- message are done.
+-- True while a run is in progress in any script: this script's own, from
+-- start until its summary, licence activation and restart message are done,
+-- or another script's, whose install heartbeat is younger than 3 s.
 function M.install.is_running()
-  return install ~= nil
+  if install ~= nil then
+    return true
+  end
+  local beat = tonumber(reaper.GetExtState(EXT_SECTION, INSTALL_HEARTBEAT_KEY))
+  return beat ~= nil and reaper.time_precise() - beat < INSTALL_HEARTBEAT_FRESH
 end
 
 local reopen_waiting = false
