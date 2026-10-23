@@ -473,7 +473,7 @@ Feature: install-helper-windows
 
 ## 48. macOS helper script installers run as the member
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/helpers/rpm-install.sh
 Preconditions: 27, 44

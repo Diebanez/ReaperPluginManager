@@ -11,10 +11,12 @@
 #
 # --plugins-root defaults to ~/Library/Audio/Plug-Ins. Status lines:
 # START <n>, ITEM <id> download|verify|install, OK <id>, FAIL <id> <message>,
-# DONE <ok> <failed>. Packages (pkg entries, and a package found in a dmg)
-# are queued and installed after every other entry in one administrator-
-# privileged run, so the password is asked once; DONE follows that phase.
-# The credentials file is deleted when the run ends.
+# DONE <ok> <failed>. Installer types: zip, dmg, pkg and script. Packages (pkg
+# entries, and a package found in a dmg) are queued and installed after every
+# other entry in one administrator-privileged run, so the password is asked
+# once; DONE follows that phase. A script entry's install.sh runs at its own
+# turn as the member, never inside that run. The credentials file is deleted
+# when the run ends.
 # Where ditto and xattr are missing (development runs under Git Bash), unzip
 # and cp -R stand in and the quarantine flag is left alone.
 
@@ -181,10 +183,10 @@ route_items() {
   return 0
 }
 
-# Unpacks the zip $1 into the work folder $2 and routes its plugin items with
-# the dest $3. Sets msg on failure.
-install_zip() {
-  local archive=$1 out=$2/unpacked dest=$3 err rc
+# Unpacks the zip $1 into the folder unpacked under the work folder $2. Sets
+# msg on failure.
+unpack_zip() {
+  local archive=$1 out=$2/unpacked err rc
   rm -rf -- "$out"
   if ! mkdir -p -- "$out" 2>/dev/null; then
     msg="cannot create the folder $out"
@@ -200,7 +202,39 @@ install_zip() {
     msg="cannot unpack the archive: $(one_line "$err")"
     return 1
   fi
-  route_items "$out" "$dest" "archive"
+  return 0
+}
+
+# Unpacks the zip $1 into the work folder $2 and routes its plugin items with
+# the dest $3. Sets msg on failure.
+install_zip() {
+  unpack_zip "$1" "$2" || return 1
+  route_items "$2/unpacked" "$3" "archive"
+}
+
+# Unpacks the zip $1 into the work folder $2 and runs its install.sh from the
+# unpacked folder as the member running this helper, with the RPM_* variables
+# of the helper contract set to the folders under the plugins root. Waits with
+# no time limit. Any exit code but 0 fails with the script's last non-empty
+# output line. Sets msg on failure.
+install_script() {
+  local out=$2/unpacked err rc
+  unpack_zip "$1" "$2" || return 1
+  if [ ! -f "$out/install.sh" ]; then
+    msg="no install.sh in the archive"
+    return 1
+  fi
+  err=$(cd -- "$out" && RPM_PAYLOAD_DIR=$out RPM_VST3_DIR=$plugins_root/VST3 \
+    RPM_CLAP_DIR=$plugins_root/CLAP RPM_VST2_DIR=$plugins_root/VST \
+    RPM_AU_DIR=$plugins_root/Components /bin/bash install.sh 2>&1)
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    err=$(printf '%s\n' "$err" | sed '/^[[:space:]]*$/d' | tail -n 1)
+    msg=$(one_line "$err")
+    [ -n "$msg" ] || msg="install script exited with code $rc"
+    return 1
+  fi
+  return 0
 }
 
 # The first package (.pkg, .mpkg) within two levels of the folder $1, the
@@ -312,6 +346,7 @@ install_one() {
   case "$(lower "$type")" in
     zip) install_zip "$file" "$dir" "$dest" ;;
     dmg) install_dmg "$file" "$dir" "$dest" ;;
+    script) install_script "$file" "$dir" ;;
     pkg)
       pkg=$file
       return 2
