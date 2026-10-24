@@ -1,10 +1,166 @@
 # Server setup guide
 
 This guide is for the group's maintainer: the person who keeps the plugin
-catalogue on the group's server. The catalogue is the file `manifest.json` at
-the server root, which you curate inside REAPER with the
-**Script: RPM_CatalogueManager.lua** action (*Curating the catalogue* below); `manifest.example.json` in this
-folder is a complete example of its format.
+catalogue on the group's server. The server is any place every member can
+read files from and you can write to. It holds the plugin installers and the
+catalogue, the file `manifest.json` at its root, which you curate inside
+REAPER with the **Script: RPM_CatalogueManager.lua** action (*Curating the
+catalogue* below); `manifest.example.json` in this folder is a complete
+example of its format. You start from an empty server: publishing the
+catalogue the first time creates `manifest.json` and the installer folders.
+
+## Choosing a server
+
+| | A shared folder | Your own server | FTP hosting |
+| --- | --- | --- | --- |
+| What it is | A folder in a cloud storage service (Dropbox, Google Drive, OneDrive) or on a network share | A small Linux server you rent, set up by `rpm-server.sh` in this folder | An FTP account at a web hosting provider, or a NAS |
+| Cost | Free within the service's free storage | A few euros a month, plus a domain name | Often included in a hosting plan |
+| Members need | The service's desktop app, syncing the folder | Nothing but their account | Nothing but their account |
+| Read-only members | Yes: share the folder read-only | Yes: every member account is read-only | Only where the provider offers read-only accounts |
+| Setup effort | Minutes | About an hour, with a terminal | Minutes, in the provider's control panel |
+
+A shared folder is the quickest start, and enough for most groups; its limit
+is storage, since every installer counts against each member's quota too,
+where the service counts shared files (Dropbox does). Your own server suits a
+larger catalogue or a group that would rather not sync it to every machine.
+
+Each machine uses one server account. Members use one that can only read;
+you use one allowed to upload, rename and delete files and, over FTP, to
+create folders. A member's account never needs to write.
+
+## A shared folder
+
+The server is a folder that you and every member sync on your computers. You
+publish into your copy; the service carries the files to the members'
+copies, where the manager reads them.
+
+### Setting it up
+
+1. Create an empty folder in your cloud storage, such as `RPM`.
+2. Share it with each member as read-only: *Can view* in Dropbox and
+   OneDrive, *Viewer* in Google Drive. Members who can edit the folder can
+   change the catalogue.
+3. Each member adds the shared folder to their own storage, if the service
+   does not do it on its own (Google Drive: *Add shortcut to Drive*; OneDrive:
+   *Add shortcut to My files*), and keeps the service's desktop app running,
+   so the folder syncs to their computer.
+4. Run *Script: RPM_Setup.lua* with your copy's address, the user field
+   empty.
+
+Files kept online only, the default in some services, work: the service
+downloads an installer when the manager reads it, so a first install waits
+for the download.
+
+### Each member's address
+
+The address is the folder's path on each computer, so it differs from member
+to member: a `file://` address followed by the path, written with `/`, and
+ending with `/`. For example:
+
+- Windows: `file:///C:/Users/anna/Dropbox/RPM/` or
+  `file:///G:/My Drive/RPM/` (Google Drive's drive letter);
+- macOS: `file:///Users/anna/Library/CloudStorage/Dropbox/RPM/`.
+
+To find the path on Windows, open the folder in Explorer and copy it from the
+address bar; on macOS, right-click the folder in Finder while holding Option
+and choose *Copy "RPM" as Pathname*. Members leave the user and password
+fields empty, and the TLS field does not apply.
+
+### Managing members
+
+Add a member by sharing the folder with them, as in step 2, and send them
+the guide at the repository root (`README.md`) with step 3. Remove a member
+by unsharing the folder; installers already synced to their computer stay
+there.
+
+A network share works the same way: `file://fileserver/share/RPM/`, or the
+drive letter it is mapped to, with members given read access only.
+
+## Your own server
+
+`rpm-server.sh` in this folder sets up a catalogue server on a Linux machine
+you control: HTTPS with a free Let's Encrypt certificate, WebDAV so you can
+publish over HTTPS, one write account for you and one read-only account per
+member. The address is `https://<your domain>/rpm/`.
+
+### What you need
+
+- A server running Ubuntu 22.04 or later, or Debian 12 or later, which you
+  reach with SSH and on which you can run `sudo`. The smallest plan of any
+  hosting provider is enough; storage is what the installers need.
+- A domain or subdomain name whose DNS record points at the server, such as
+  `plugins.example.com`.
+- Ports 80 and 443 open to the internet. The script opens them in `ufw` when
+  it is active; open them in your provider's firewall yourself.
+
+The script adds one nginx site for that name and leaves any other site on the
+server as it is.
+
+### Setting it up
+
+Copy `rpm-server.sh` to the server and run it with the domain and the
+members' user names, lower-case letters, digits, `-` and `_`:
+
+```bash
+sudo bash rpm-server.sh setup plugins.example.com anna marco
+```
+
+It installs nginx and certbot, asks certbot for the certificate (certbot
+asks for an email address and your agreement to its terms the first time),
+creates the accounts, and tests the server as the manager uses it: the write
+account uploads, renames and deletes, a member reads and cannot write, and an
+anonymous visitor is refused. It then prints the catalogue address and each
+new account's password, once: they are stored only as hashes. The write
+account is named `maint`; run *Script: RPM_Setup.lua* with it and its
+password.
+
+Running `setup` again is safe: it keeps the certificate and the existing
+accounts and their passwords, and adds the members you name.
+
+### Managing members
+
+```bash
+sudo bash rpm-server.sh add-member NAME     # new read-only account; prints its password
+sudo bash rpm-server.sh remove-member NAME  # deletes the account
+sudo bash rpm-server.sh reset NAME          # new password for any account, maint included
+sudo bash rpm-server.sh list                # lists the accounts
+```
+
+Send a new member the catalogue address, their user name and their password,
+and the guide at the repository root (`README.md`). A removed member's access
+ends at once.
+
+### Uploading large installers
+
+Publishing uploads each installer from your machine. For a very large one,
+such as a multi-gigabyte sample library, copying it to the server yourself can
+be faster:
+
+1. Copy the files into a folder on the server, under the paths the catalogue
+   gives them (*Where installers go on the server* below), such as
+   `incoming/acme-drums/windows/AcmeDrums-setup.exe`.
+2. Run `sudo bash rpm-server.sh import incoming`. It moves every file into the
+   catalogue folder at the same path and prints each one's path and SHA-256
+   checksum; it never overwrites a file already there.
+3. Add the entry with those paths and checksums: the installers are then
+   already on the server and are not uploaded again.
+
+## FTP hosting
+
+Any FTP server works: an FTP account at a web hosting provider, a NAS, or a
+server you run. Create a folder for the catalogue, then:
+
+- for you, an account limited to that folder that can upload, rename and
+  delete files and create folders;
+- for each member, an account limited to that folder that can only read, when
+  the server offers one. Many hosting providers offer only full accounts:
+  then every member's account can change the catalogue, so give one only to
+  people you trust with it.
+
+The address is `ftp://` followed by the host and the folder, such as
+`ftp://ftp.example.com/rpm/`. Keep the TLS setting at `required` when the
+server offers TLS, which most do, so passwords never cross the network in
+clear. Add and remove members in the provider's control panel.
 
 ## Server address
 
@@ -24,13 +180,10 @@ The address starts with one of these schemes:
 Fetching the catalogue and downloading installers work with every scheme.
 Publishing the catalogue writes to the server — it uploads, renames and
 deletes files — and works with FTP, FTPS and `file://` servers as they are,
-but with an HTTPS server only when it speaks WebDAV: uploads are HTTP `PUT`,
-renames WebDAV `MOVE` and deletes WebDAV `DELETE`. A plain HTTPS server
-refuses them, and the manager reports that writing over HTTPS needs WebDAV.
-
-Each machine uses one server account. Give members a read-only account and
-yourself one allowed to upload, rename and delete files and, over FTP, to
-create folders.
+but with an HTTPS server only when it speaks WebDAV, as one set up by
+`rpm-server.sh` does: uploads are HTTP `PUT`, renames WebDAV `MOVE` and
+deletes WebDAV `DELETE`. A plain HTTPS server refuses them, and the manager
+reports that writing over HTTPS needs WebDAV.
 
 ## Curating the catalogue
 

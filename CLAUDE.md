@@ -45,8 +45,9 @@ All paths are relative to the repository root.
   `rpm-restart.sh` restart helpers (wait for REAPER to quit, then start it
   again), `rpm-run-hidden.ps1` (runs a Windows background `cmd.exe` line
   with no console window), and the `rpm-secret.*` OS secret-store helpers.
-- `server/` — the example catalogue and the server setup guide;
-  `README.md` — the member-facing guide.
+- `server/` — the example catalogue, the server setup guide and
+  `rpm-server.sh`, which sets up a self-hosted HTTPS + WebDAV catalogue server
+  and manages its accounts; `README.md` — the member-facing guide.
 - `index.xml` — the ReaPack index, written by the release workflow and never
   edited by hand; `.reapack-index.conf` — the index generator's settings.
 - `.github/workflows/` — `check.yml` validates the package on every push to

@@ -8,6 +8,38 @@ guides you through activating each plugin's licence with your own account.
 You can also browse the catalogue and install any plugin it offers before a
 project needs it.
 
+## Quick start
+
+The group has two roles. The **maintainer** sets up the server and keeps the
+catalogue: which plugins it offers, their installers and how each is
+activated. **Members** check projects and install from it. The maintainer is
+usually a member too, and does both.
+
+**As a member**, you need three things from your maintainer: the server
+address, your user name and your password (a shared folder needs no user or
+password). Then:
+
+1. Install the manager through ReaPack (*Installing* below).
+2. Run *Script: RPM_Setup.lua* and enter what the maintainer gave you
+   (*Setup* below). Its last line should read "Connection succeeded".
+3. Open a project. When it uses plugins you do not have, a window lists them;
+   press **Install N plugins**, then let REAPER restart. To install a plugin
+   before a project needs it, run *Script: RPM_Browse.lua*.
+
+**As the maintainer**:
+
+1. Choose and set up the server — a shared cloud folder, your own server or
+   FTP hosting — as the
+   [server setup guide](https://github.com/Diebanez/ReaperPluginManager/blob/master/server/README.md)
+   describes, with an account for you that can write and one for each member
+   that can only read.
+2. Install the manager and the ReaImGui extension (*For the maintainer*
+   below), and run *Script: RPM_Setup.lua* with your own account.
+3. Run *Script: RPM_CatalogueManager.lua*, add the plugins with **Add from
+   installed**, attach each one's installers, and press **Publish**.
+4. Send each member their address, user name and password, and a link to
+   this guide.
+
 ## Installing
 
 The manager needs REAPER 7 or later on Windows 10/11 or macOS; on any other
@@ -57,7 +89,8 @@ for ReaImGui (it comes from the ReaTeam Extensions repository, which ReaPack
 includes by default), and restart REAPER.
 
 The ReaPack package carries only the scripts and their helpers. The server
-setup guide and the example catalogue are in the repository's
+setup guide, the server setup script and the example catalogue are in the
+repository's
 [`server/` folder](https://github.com/Diebanez/ReaperPluginManager/tree/master/server).
 
 ## Setup
@@ -72,10 +105,12 @@ The dialog proposes the current values; the password field always starts
 empty.
 
 - **Server URL** — the server address, starting with its scheme, such as
-  `ftps://example.com/plugins/`; a missing final `/` is added. An address
-  with no scheme is refused, and the dialog opens again.
+  `https://plugins.example.com/rpm/`, `ftps://example.com/plugins/` or, for a
+  shared folder, its path on your computer:
+  `file:///C:/Users/anna/Dropbox/RPM/`. A missing final `/` is added. An
+  address with no scheme is refused, and the dialog opens again.
 - **User** — the server account's user name. Leave it empty to connect
-  anonymously; any stored password is then removed.
+  anonymously, as for a shared folder; any stored password is then removed.
 - **Password** — masked as you type. Left empty with the same user, the
   stored password is kept. A password with spaces, tabs or line breaks is
   refused, and the dialog opens again with the other values kept. Where the

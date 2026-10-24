@@ -75,9 +75,10 @@ no queue or scheduler beyond these.
 - **Release** — a ReaPack package holding the scripts and the helpers,
   indexed by this repository's `index.xml`, which a GitHub Action regenerates
   on every version tag. Users install ReaPack, import the repository, install
-  the package and run setup. The example catalogue, the server folder layout
-  and a server setup guide that includes the shared-synced-folder option stay
-  in the public repository's `server/` folder. The Claude-based catalogue
+  the package and run setup. The example catalogue, the server folder layout,
+  a server setup guide covering a shared synced folder, a self-hosted server
+  and FTP hosting, and a setup script for a self-hosted HTTPS + WebDAV server
+  stay in the public repository's `server/` folder. The Claude-based catalogue
   assistant lives in this repository's `.claude/` and is left out of the
   package.
 
