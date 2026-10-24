@@ -202,9 +202,4 @@ processes.
 
 ## Open questions
 
-- Whether REAPER on macOS, with default preferences, detects newly installed
-  plugins at startup; on Windows it does.
-- Whether a process REAPER started survives REAPER quitting on macOS, and
-  which path `GetExePath()` gives there (the app bundle or a folder inside
-  it) — to be checked in REAPER; on Windows the restart helper survives and
-  the restart reopens the projects.
+None.
