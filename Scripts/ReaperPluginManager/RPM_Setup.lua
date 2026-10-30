@@ -1,11 +1,10 @@
 -- @description ReaperPluginManager
 -- @author Diebanez
--- @version 1.5.0
+-- @version 1.6.0-beta.1
 -- @changelog
---   macOS: a disk image holding a vendor app (such as UA Connect or the
---   Spitfire Audio app) and no plugin installs that app into /Applications
---   silently, asking for the administrator password only when the member
---   cannot write there.
+--   Catalogue Manager: a draft entry file can name a local installer by its
+--   path (`source`); Import draft attaches it, computing its checksum, and
+--   Publish uploads it, so nothing is left to attach by hand.
 -- @about
 --   Lists the plugins a REAPER project uses that are not installed, installs
 --   the ones a group's private catalogue offers, and guides licence
