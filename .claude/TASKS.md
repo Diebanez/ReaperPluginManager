@@ -663,7 +663,7 @@ Feature: catalogue-editor
 
 ## 67. Update documentation for feature `catalogue-editor`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: server/README.md
 Preconditions: 66

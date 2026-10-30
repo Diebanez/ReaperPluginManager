@@ -246,14 +246,20 @@ one `-`, with `-2`, `-3` and so on appended when the id is already taken.
   string, one per line.
 - **Import draft** lists the draft entry files, the `.json` files in the
   `drafts` folder beside `draft.json`. A draft entry file is a catalogue in
-  the format below holding exactly one valid entry; any other file is refused
-  with the reason. Picking a file adds its entry, or, when the draft already
-  has an entry with the same `id`, merges into it after confirmation: the
-  file's fields replace the entry's, its match strings are added to the
-  entry's, and its installers replace the entry's for the platforms it names.
-  The installers an imported entry names are taken as already on the server:
-  they keep their paths and are never uploaded. The file is deleted once
-  imported.
+  the format below holding exactly one valid entry, whose installers each
+  name either a file already on the server (`file`) or a file on this
+  computer (`source`, its absolute path, in place of `file` and `sha256`,
+  beside `type`, `args` and `dest`); any other file is refused with the
+  reason. Picking a file adds its entry, or, when the draft already has an
+  entry with the same `id`, merges into it after confirmation: the file's
+  fields replace the entry's, its match strings are added to the entry's,
+  and its installers replace the entry's for the platforms it names. An
+  installer named by `file` keeps its path and is never uploaded. One named
+  by `source` is attached as **Attach file...** attaches one: its checksum is
+  computed, its server path assigned, and it is uploaded when the draft is
+  published; the same `source` under both `windows` and `macos` is a package
+  shared by both platforms. A `source` that cannot be read is flagged on its
+  entry, to attach again. The file is deleted once imported.
 
 ### The entry form
 
@@ -295,8 +301,9 @@ The activation is set by its method — `none`, `vendor-app`, `serial` or
 
 ### Where installers go on the server
 
-An installer attached from your disk is uploaded into a folder named after
-its entry's `id`, under its own file name:
+An installer attached from your disk, with **Attach file...** or by an
+imported draft entry's `source`, is uploaded into a folder named after its
+entry's `id`, under its own file name:
 
 - `<id>/windows/<file>` — the Windows installer;
 - `<id>/macos/<file>` — the macOS installer;
@@ -304,7 +311,8 @@ its entry's `id`, under its own file name:
 
 For example, `acme-compressor/windows/AcmeCompressor-2.1.0-win.exe`. An entry
 needs a usable `id` — not empty, without spaces — before an installer can be
-attached. An installer an imported draft entry names keeps its own path.
+attached. An installer an imported draft entry names by `file` keeps its own
+path.
 
 ### Publishing
 
