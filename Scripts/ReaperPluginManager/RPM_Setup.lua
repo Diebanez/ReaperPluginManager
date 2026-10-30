@@ -1,6 +1,6 @@
 -- @description ReaperPluginManager
 -- @author Diebanez
--- @version 1.5.0-beta.1
+-- @version 1.5.0
 -- @changelog
 --   macOS: a disk image holding a vendor app (such as UA Connect or the
 --   Spitfire Audio app) and no plugin installs that app into /Applications
