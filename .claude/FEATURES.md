@@ -85,7 +85,7 @@ Tasks: 29, 30, 31, 32
 
 ## catalogue-editor — Maintainer's catalogue editor
 
-Status: [PLANNED]
+Status: [DONE]
 Doc: .claude/domain/features/catalogue-editor.md
 Source: product-design.md § Catalogue management
 Tasks: 33, 34, 35, 36, 52, 53, 66, 67
@@ -103,7 +103,7 @@ Tasks: 37, 38
 
 ## catalogue-assistant — Claude-based catalogue entry research
 
-Status: [PLANNED]
+Status: [DONE]
 Doc: .claude/domain/features/catalogue-assistant.md
 Source: product-design.md § Catalogue assistant
 Tasks: 39, 40, 68, 69
