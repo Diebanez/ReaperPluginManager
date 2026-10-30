@@ -115,7 +115,8 @@ processes.
   it skipped because `vst2_dir` is not set.
 - **Routing of extracted plugins** (zip, or dmg without a package) — copy
   only the outermost plugin items, without descending into an item already
-  found (a `.vst3` bundle contains a `.vst3` file of the same name); delete
+  found (a `.vst3` bundle contains a `.vst3` file of the same name) or into
+  an application bundle (`.app`), whose plugins belong to the app; delete
   an existing destination item of the same name before copying, since
   copying a folder over an existing one nests it. An entry's `dest`
   overrides the routing by extension.
