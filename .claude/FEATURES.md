@@ -85,10 +85,10 @@ Tasks: 29, 30, 31, 32
 
 ## catalogue-editor — Maintainer's catalogue editor
 
-Status: [ITERATED]
+Status: [PLANNED]
 Doc: .claude/domain/features/catalogue-editor.md
 Source: product-design.md § Catalogue management
-Tasks: 33, 34, 35, 36, 52, 53
+Tasks: 33, 34, 35, 36, 52, 53, 66, 67
 
 ---
 

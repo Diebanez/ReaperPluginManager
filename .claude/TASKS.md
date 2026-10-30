@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 65
+Last task number: 67
 
 ---
 
@@ -648,5 +648,25 @@ Target: claude
 Files: README.md, server/README.md, CLAUDE.md, .claude/domain/features/plugin-installation.md, .claude/domain/features/catalogue-browser.md
 Preconditions: 63, 64
 Feature: plugin-installation
+
+---
+
+## 66. Import draft attaches local installers named by `source`
+
+Status: [MISSING]
+Target: claude
+Files: Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/RPM_CatalogueManager.lua
+Preconditions: none
+Feature: catalogue-editor
+
+---
+
+## 67. Update documentation for feature `catalogue-editor`
+
+Status: [MISSING]
+Target: claude
+Files: server/README.md
+Preconditions: 66
+Feature: catalogue-editor
 
 ---
