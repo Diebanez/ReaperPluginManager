@@ -103,10 +103,10 @@ Tasks: 37, 38
 
 ## catalogue-assistant — Claude-based catalogue entry research
 
-Status: [ITERATED]
+Status: [PLANNED]
 Doc: .claude/domain/features/catalogue-assistant.md
 Source: product-design.md § Catalogue assistant
-Tasks: 39, 40
+Tasks: 39, 40, 68, 69
 
 ---
 

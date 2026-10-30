@@ -1,6 +1,6 @@
 # Tasks
 
-Last task number: 67
+Last task number: 69
 
 ---
 
@@ -668,5 +668,25 @@ Target: claude
 Files: server/README.md
 Preconditions: 66
 Feature: catalogue-editor
+
+---
+
+## 68. Catalogue assistant takes local installers and drafts them as `source`
+
+Status: [MISSING]
+Target: claude
+Files: .claude/skills/catalogue-assistant/SKILL.md, .claude/skills/catalogue-assistant/fetch-installer.sh
+Preconditions: 66
+Feature: catalogue-assistant
+
+---
+
+## 69. Update documentation for feature `catalogue-assistant`
+
+Status: [MISSING]
+Target: claude
+Files: CLAUDE.md
+Preconditions: 68
+Feature: catalogue-assistant
 
 ---
