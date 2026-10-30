@@ -11,12 +11,14 @@
 #
 # --plugins-root defaults to ~/Library/Audio/Plug-Ins. Status lines:
 # START <n>, ITEM <id> download|verify|install, OK <id>, FAIL <id> <message>,
-# DONE <ok> <failed>. Installer types: zip, dmg, pkg and script. Packages (pkg
-# entries, and a package found in a dmg) are queued and installed after every
-# other entry in one administrator-privileged run, so the password is asked
-# once; DONE follows that phase. A script entry's install.sh runs at its own
-# turn as the member, never inside that run. The credentials file is deleted
-# when the run ends.
+# DONE <ok> <failed>. Installer types: zip, dmg, pkg and script. A dmg with no
+# package and no plugin installs the application at its top level into
+# /Applications. Packages (pkg entries, and a package found in a dmg), and an
+# application the member cannot write into /Applications, are queued and
+# installed after every other entry in one administrator-privileged run, so
+# the password is asked once; DONE follows that phase. A script entry's
+# install.sh runs at its own turn as the member, never inside that run. The
+# credentials file is deleted when the run ends.
 # Where ditto and xattr are missing (development runs under Git Bash), unzip
 # and cp -R stand in and the quarantine flag is left alone.
 
@@ -27,6 +29,7 @@ netrc=
 tls=required
 insecure=0
 plugins_root="$HOME/Library/Audio/Plug-Ins"
+apps_dir=/Applications
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -165,17 +168,24 @@ route_item() {
   return 0
 }
 
-# Routes every outermost plugin item under the folder $1 with the dest $2,
-# without descending into one and ignoring __MACOSX; $3 names the source in
-# the message when there is none. Sets msg on failure.
+# Prints every outermost plugin item under the folder $1, one per line,
+# without descending into one or into an application bundle and ignoring
+# __MACOSX.
+plugin_items() {
+  find "$1" -mindepth 1 \( -name __MACOSX -prune \) -o \( -iname '*.app' -prune \) -o \
+    \( \( -iname '*.vst3' -o -iname '*.component' -o -iname '*.vst' -o -iname '*.clap' \) \
+    -print -prune \) 2>/dev/null
+}
+
+# Routes every plugin item plugin_items finds under the folder $1 with the
+# dest $2; $3 names the source in the message when there is none. Sets msg on
+# failure.
 route_items() {
   local root=$1 dest=$2 what=$3 item found=0
   while IFS= read -r item; do
     found=$((found + 1))
     route_item "$item" "$dest" || return 1
-  done < <(find "$root" -mindepth 1 \( -name __MACOSX -prune \) -o \
-    \( \( -iname '*.vst3' -o -iname '*.component' -o -iname '*.vst' -o -iname '*.clap' \) \
-    -print -prune \) 2>/dev/null)
+  done < <(plugin_items "$root")
   if [ $found -eq 0 ]; then
     msg="no plugin (.vst3, .component, .vst, .clap) in the $what"
     return 1
@@ -254,12 +264,67 @@ find_package() {
   return 1
 }
 
+# The first application (.app) at the top level of the folder $1, in name
+# order; installer and uninstaller applications are skipped, since they cannot
+# run silently.
+find_app() {
+  local item
+  while IFS= read -r item; do
+    case "$(lower "${item##*/}")" in
+      *install*) continue ;;
+    esac
+    printf '%s' "$item"
+    return 0
+  done < <(find "$1" -mindepth 1 -maxdepth 1 -iname '*.app' -print 2>/dev/null | sort)
+  return 1
+}
+
+# Copies the application $1 into the applications folder, replacing an older
+# copy, then clears the quarantine flag on the copy. When the member cannot
+# write that folder, or an older copy is not the member's own, copies it into
+# the work folder $2 instead and names it in pkg, returning 2 so it is queued
+# for the privileged phase. Sets msg on failure.
+install_app() {
+  local app=$1 dir=$2 base target err
+  base=${app##*/}
+  target=$apps_dir/$base
+  if [ -w "$apps_dir" ] && { [ ! -e "$target" ] || [ -O "$target" ]; } &&
+      rm -rf -- "$target" 2>/dev/null; then
+    if have ditto; then
+      err=$(ditto "$app" "$target" 2>&1)
+    else
+      err=$(cp -R "$app" "$target" 2>&1)
+    fi
+    if [ $? -ne 0 ]; then
+      msg="cannot copy $base to $apps_dir: $(one_line "$err")"
+      return 1
+    fi
+    if have xattr; then
+      xattr -dr com.apple.quarantine "$target" >/dev/null 2>&1
+    fi
+    return 0
+  fi
+  pkg=$dir/$base
+  rm -rf -- "$pkg"
+  if have ditto; then
+    err=$(ditto "$app" "$pkg" 2>&1)
+  else
+    err=$(cp -R "$app" "$pkg" 2>&1)
+  fi
+  if [ $? -ne 0 ]; then
+    msg="cannot copy the application $base: $(one_line "$err")"
+    return 1
+  fi
+  return 2
+}
+
 # Mounts the disk image $1 in the work folder $2. A package within two levels
 # of the volume is copied into the work folder and named in pkg, returning 2
 # so it is queued; otherwise the volume's plugin items are routed with the
-# dest $3. The image is detached either way. Sets msg on failure.
+# dest $3, or, when it holds none, the application at its top level is
+# installed. The image is detached either way. Sets msg on failure.
 install_dmg() {
-  local image=$1 dir=$2 dest=$3 mnt=$2/volume err rc found
+  local image=$1 dir=$2 dest=$3 mnt=$2/volume err rc found app
   if ! mkdir -p -- "$mnt" 2>/dev/null; then
     msg="cannot create the folder $mnt"
     return 1
@@ -288,7 +353,13 @@ install_dmg() {
       rc=2
     fi
   else
-    route_items "$mnt" "$dest" "disk image"
+    app=
+    [ -z "$(plugin_items "$mnt")" ] && app=$(find_app "$mnt")
+    if [ -n "$app" ]; then
+      install_app "$app" "$dir"
+    else
+      route_items "$mnt" "$dest" "disk image"
+    fi
     rc=$?
   fi
   hdiutil detach "$mnt" >/dev/null 2>&1 || hdiutil detach -force "$mnt" >/dev/null 2>&1
@@ -296,8 +367,8 @@ install_dmg() {
 }
 
 # Downloads, verifies and installs job entry $1, writing its ITEM lines.
-# Returns 0 when installed, 2 when its package is queued (named in pkg) and
-# 1 on failure, setting msg.
+# Returns 0 when installed, 2 when its package or application is queued
+# (named in pkg) and 1 on failure, setting msg.
 install_one() {
   local id=${ids[$1]} type=${types[$1]} url=${urls[$1]} dest=${dests[$1]}
   local sha dir file err rc actual
@@ -358,15 +429,28 @@ install_one() {
   esac
 }
 
-# Installs the queued packages in one run of a generated script under
-# administrator privileges, one password prompt for all of them. The script
-# writes each package's OK or FAIL line; a package left without one fails
-# with the reason the run did not reach it.
+# Installs the queued packages and applications in one run of a generated
+# script under administrator privileges, one password prompt for all of them.
+# The script writes each entry's OK or FAIL line; an entry left without one
+# fails with the reason the run did not reach it.
 install_packages() {
   local script=$workdir/rpm-packages.sh before err rc reason j id got line
   {
     printf '#!/bin/bash\n'
     printf 'status=%q\n' "$status"
+    cat <<'EOF'
+run_app() {
+  local err
+  rm -rf -- "$3"
+  if ! err=$(/usr/bin/ditto "$2" "$3" 2>&1); then
+    err=$(printf '%s' "$err" | tr '\r\n\t' '   ' | sed 's/^ *//; s/ *$//')
+    printf 'FAIL %s application installation failed: %s\n' "$1" "${err:-ditto failed}" >> "$status"
+    return
+  fi
+  /usr/bin/xattr -dr com.apple.quarantine "$3" >/dev/null 2>&1
+  printf 'OK %s\n' "$1" >> "$status"
+}
+EOF
     cat <<'EOF'
 run_pkg() {
   local err rc short
@@ -384,7 +468,10 @@ run_pkg() {
 EOF
     j=0
     while [ $j -lt ${#q_ids[@]} ]; do
-      printf 'run_pkg %q %q\n' "${q_ids[j]}" "${q_pkgs[j]}"
+      case "$(lower "${q_pkgs[j]}")" in
+        *.app) printf 'run_app %q %q %q\n' "${q_ids[j]}" "${q_pkgs[j]}" "$apps_dir/${q_pkgs[j]##*/}" ;;
+        *) printf 'run_pkg %q %q\n' "${q_ids[j]}" "${q_pkgs[j]}" ;;
+      esac
       j=$((j + 1))
     done
   } > "$script" 2>/dev/null

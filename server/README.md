@@ -594,8 +594,13 @@ On a Mac, the manager installs a `macos` installer according to its `type`:
   it shows before opening. When it holds a package (`.pkg` or `.mpkg`) at its
   top level or one folder down, that package is installed as a `pkg` entry
   is; a package whose name contains `uninstall` is passed over. Otherwise the
-  plugins in the image are copied to their folders as from a `zip`. The image
-  is closed afterwards either way.
+  plugins in the image are copied to their folders as from a `zip`. An image
+  holding no plugin but an application at its top level — a vendor app such
+  as UA Connect, delivered for dragging into Applications — has that
+  application copied into `/Applications`, replacing an older copy; an
+  application whose name contains `install` is passed over, since an
+  installer application cannot run silently. The image is closed afterwards
+  either way.
 - `pkg` — the package is installed with macOS's own installer, for the whole
   machine.
 - `script` — the archive is unpacked and the `install.sh` at its root is run
@@ -635,13 +640,15 @@ it decides itself where it installs.
 
 ### One password for packages
 
-Only packages need administrator rights. The manager installs every other
-plugin of the run first, script entries included, then all the run's packages
-together, behind one macOS password prompt — asked once per run, however many
-packages it holds, and not at all for a run without a package, such as one
-whose entries are only zips and scripts. When
-the member cancels the prompt, each package fails with "administrator
-password not entered"; the plugins installed before it stay installed.
+Only packages need administrator rights, and an application from a disk image
+when the member cannot write it into `/Applications` — a member who is not an
+administrator, or an older copy a package installed. The manager installs
+every other plugin of the run first, script entries included, then all the
+run's packages and such applications together, behind one macOS password
+prompt — asked once per run, however many it holds, and not at all for a run
+without one, such as one whose entries are only zips and scripts. When the
+member cancels the prompt, each of them fails with "administrator password
+not entered"; the plugins installed before it stay installed.
 
 ### Try packages and disk images on a Mac first
 
@@ -652,8 +659,9 @@ Before publishing a `pkg` or `dmg` entry, try its installer by hand on a Mac:
   package that works when opened by double-click can still fail there. Run
   that command on it once.
 - Open a disk image and check that it holds a package at its top level or one
-  folder down, or the plugin bundles themselves. An image holding only an
-  installer application cannot be installed by the manager.
+  folder down, the plugin bundles themselves, or the vendor's application at
+  its top level. An image holding only an installer application, which must
+  be opened to install anything, cannot be installed by the manager.
 
 ## Script installers
 
