@@ -342,9 +342,10 @@ installs:
 
 - **Windows** — one administrator prompt when the run starts. Refusing it
   fails every plugin of the run with "administrator permission denied".
-- **macOS** — only packages need administrator rights. They are installed
-  together after every other plugin of the run, behind one password prompt.
-  Cancelling it fails each package with "administrator password not
+- **macOS** — only packages need administrator rights, and a vendor app that
+  cannot be copied into `/Applications` with your own rights. They are
+  installed together after every other plugin of the run, behind one password
+  prompt. Cancelling it fails each of them with "administrator password not
   entered"; the plugins installed before it stay installed.
 
 ### The final summary
