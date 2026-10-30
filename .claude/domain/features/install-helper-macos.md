@@ -2,7 +2,8 @@
 
 The macOS process that downloads, verifies and installs the plugins of one
 job, asking for the administrator password at most once and only when the
-job holds a package, reporting each step to the status file.
+job holds a package or an application the member cannot install, reporting
+each step to the status file.
 
 ## Purpose
 
@@ -44,8 +45,18 @@ A bash 3.2 script, per [technical-direction.md](../technical-direction.md).
   - `dmg` — `yes | hdiutil attach -nobrowse -readonly -noautoopen
     -mountpoint …` (the `yes` accepts licence prompts). A `.pkg`/`.mpkg`
     within two levels is copied into the work folder and queued as a
-    package; otherwise bundles are routed. Then `hdiutil detach`, with
-    `-force` when needed.
+    package. Otherwise bundles are routed, or, when the image holds no
+    plugin bundle, its application is installed: the first `.app` at the
+    image's top level, in name order, whose name does not contain `install`
+    in any case, since an installer or uninstaller app cannot run silently.
+    The application is copied into `/Applications` as the member, with no
+    prompt, replacing an older copy, and its quarantine flag cleared; when
+    the member cannot write `/Applications`, or an older copy is not the
+    member's own, it is copied into the work folder and queued for the
+    privileged phase instead, so a root-owned copy is never half-removed.
+    An image with neither fails with "no plugin (.vst3, .component, .vst,
+    .clap) in the disk image". Then `hdiutil detach`, with `-force` when
+    needed.
   - `pkg` — queued.
   - `script` — `ditto -x -k` into the work folder, then `/bin/bash
     install.sh` from the unpacked folder, run as the member in the same
@@ -61,12 +72,14 @@ A bash 3.2 script, per [technical-direction.md](../technical-direction.md).
     root-owned files in the member's own folders and gives a script no more
     rights than it needs.
 - **Privileged phase** — after every other entry, generates one script that
-  runs `/usr/sbin/installer -pkg … -target /` per queued package and writes
-  each package's `OK`/`FAIL` line. It runs that script once through
-  `osascript … with administrator privileges`: one password prompt, and none
-  for a job whose entries are only zips and scripts. A cancelled prompt →
-  `FAIL <id> administrator password not entered` for every queued package
-  without an outcome.
+  runs `/usr/sbin/installer -pkg … -target /` per queued package and, per
+  queued application, replaces `/Applications/<name>.app` with the work
+  folder's copy and clears its quarantine flag, writing each entry's
+  `OK`/`FAIL` line (`FAIL <id> application installation failed: <reason>`
+  for an application). It runs that script once through `osascript … with
+  administrator privileges`: one password prompt, and none for a job that
+  queues nothing. A cancelled prompt → `FAIL <id> administrator password not
+  entered` for every queued entry without an outcome.
 - **Development fallback** — `unzip` and `cp -R` stand in when `ditto` and
   `xattr` are missing (running the script under Git Bash).
 
