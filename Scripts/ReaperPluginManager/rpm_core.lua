@@ -1597,10 +1597,32 @@ function M.editor.manual_entry(name, vendor, match_text, taken)
   })
 end
 
+-- The installer `inst` of a draft entry file for `platform` when it names a
+-- local file by `source` instead of a server `file`: a copy keeping its
+-- `source`, `type` (from the source's extension when absent), `args` and
+-- `dest`, without `sha256`, which the editor computes when it attaches the
+-- file. Nil for any other installer.
+local function draft_source(inst, platform)
+  if not is_json_object(inst) or has_text(inst.file) or not has_text(inst.source) then
+    return nil
+  end
+  local src = copy_object(inst)
+  src.source = trim(inst.source)
+  src.sha256 = nil
+  if not has_text(src.type) then
+    local ext = src.source:match("%.(%w+)$")
+    ext = ext and ext:lower()
+    src.type = ext ~= "script" and INSTALLER_TYPES[platform][ext] and ext or nil
+  end
+  return src
+end
+
 -- Reads the text of a draft entry file: a catalogue document holding exactly
--- one entry, as the catalogue assistant writes it. Returns that entry as
--- `catalogue.validate` leaves it, or nil and the reason it cannot be
--- imported. Never raises.
+-- one entry, as the catalogue assistant writes it, whose installers each name
+-- a server file (`file`) or a local one (`source`). Returns that entry as
+-- `catalogue.validate` leaves it, its `source` installers kept as
+-- `draft_source` reads them, or nil and the reason it cannot be imported.
+-- Never raises.
 function M.editor.read_draft_entry(text)
   local value, err = M.json.decode(tostring(text or ""))
   if value == nil then
@@ -1614,7 +1636,20 @@ function M.editor.read_draft_entry(text)
   elseif #catalogue.plugins ~= 1 then
     return nil, ("it holds %d entries instead of one"):format(#catalogue.plugins)
   end
-  return catalogue.plugins[1]
+  local entry = catalogue.plugins[1]
+  local raw = value.plugins[1].installers
+  if is_json_object(raw) then
+    for platform in pairs(INSTALLER_TYPES) do
+      local inst = raw[platform]
+      local src = draft_source(inst, platform)
+      if src then
+        entry.installers[platform] = src
+      elseif is_json_object(inst) and not has_text(inst.file) then
+        return nil, ('its %s installer names neither "file" nor "source"'):format(platform)
+      end
+    end
+  end
+  return entry
 end
 
 -- Merges the imported entry `incoming` into the draft entry `entry`, in

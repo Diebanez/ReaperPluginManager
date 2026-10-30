@@ -653,7 +653,7 @@ Feature: plugin-installation
 
 ## 66. Import draft attaches local installers named by `source`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: Scripts/ReaperPluginManager/rpm_core.lua, Scripts/ReaperPluginManager/RPM_CatalogueManager.lua
 Preconditions: none

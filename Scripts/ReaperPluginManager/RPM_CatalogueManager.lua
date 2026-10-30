@@ -581,10 +581,52 @@ local function mark_on_server(entry)
   end
 end
 
+-- Attaches the local installers the imported entry `entry` names by `source`,
+-- as attaching a picked file does: each gets its server path in the entry's
+-- folder (one source under both platforms is a shared package), its SHA-256
+-- and a record in the draft's files, so publishing uploads it. A source that
+-- cannot be read keeps its record, so the entry flags it as gone. Returns
+-- the status notes on the sources that could not be read or hashed.
+local function attach_sources(entry)
+  local installers = is_table(entry.installers) and entry.installers or {}
+  local win, mac = installers.windows, installers.macos
+  local shared = is_table(win) and is_table(mac) and win.source ~= nil and win.source == mac.source
+  local files = is_table(state.draft.files) and state.draft.files or core.json.object()
+  state.draft.files = files
+  local notes, hashes = {}, {}
+  for _, platform in ipairs(PLATFORMS) do
+    local inst = installers[platform]
+    if is_table(inst) and type(inst.source) == "string" then
+      local source = inst.source
+      local path = server_path(entry.id, shared and "shared" or platform, source)
+      if hashes[path] == nil then
+        local size = file_size(source)
+        local hash, why
+        if size then
+          hash, why = sha256_of(source)
+          if not hash then
+            notes[#notes + 1] = ("The checksum of %s could not be computed (%s), so it stays empty."):format(source, why)
+          end
+        else
+          notes[#notes + 1] = ("Cannot read %s: attach it again in the entry form."):format(source)
+        end
+        files[path] = core.json.object({ source = source, size = size, sha256 = hash, uploaded = false })
+        hashes[path] = hash or false
+      end
+      inst.file = path
+      inst.sha256 = hashes[path] or nil
+      inst.source = nil
+    end
+  end
+  return notes
+end
+
 local open_form -- the entry form's constructor, defined with the form below
 
 -- Imports the draft entry file `name`: adds its entry, or merges it into the
--- draft entry with the same id after confirmation, then removes the file.
+-- draft entry with the same id after confirmation, then removes the file. Its
+-- server installers are marked as already on the server, and its local ones
+-- attached.
 local function import_draft(name)
   local plugins = draft_plugins()
   if not plugins then
@@ -618,11 +660,15 @@ local function import_draft(name)
           editing and state.form.dirty and "\n\nThe changes not yet saved in its entry form are lost." or "")) then
       return
     end
+  end
+  -- Before attaching, so only the installers naming a server file are marked.
+  mark_on_server(entry)
+  local notes = attach_sources(entry)
+  if existing then
     core.editor.merge(existing, entry)
   else
     plugins[#plugins + 1] = entry
   end
-  mark_on_server(entry)
   if editing then
     state.form = open_form(existing)
   end
@@ -635,6 +681,9 @@ local function import_draft(name)
   else
     state.status = ('%s "%s" (id %s), but %s could not be removed: delete it by hand so it is not imported again.')
       :format(verb, text_of(entry.name), entry.id, path)
+  end
+  if #notes > 0 then
+    state.status = state.status .. " " .. table.concat(notes, " ")
   end
   refresh_draft_files()
 end
