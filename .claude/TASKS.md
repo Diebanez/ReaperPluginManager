@@ -673,7 +673,7 @@ Feature: catalogue-editor
 
 ## 68. Catalogue assistant takes local installers and drafts them as `source`
 
-Status: [MISSING]
+Status: [DONE]
 Target: claude
 Files: .claude/skills/catalogue-assistant/SKILL.md, .claude/skills/catalogue-assistant/fetch-installer.sh
 Preconditions: 66

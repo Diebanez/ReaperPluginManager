@@ -1,22 +1,30 @@
 #!/bin/bash
-# fetch-installer.sh: the catalogue assistant's access to the group's server.
-# Downloads installers already on the server into a temporary folder, with
-# ReaperPluginManager's own settings (config.ini) and the server password from
-# the OS secret store, and reports each file's type, generator, size and
-# SHA-256. Targets bash 3.2 (macOS) and Git Bash (Windows).
+# fetch-installer.sh: the catalogue assistant's access to the plugin's
+# installers. Downloads installers already on the group's server into a
+# temporary folder, with ReaperPluginManager's own settings (config.ini) and
+# the server password from the OS secret store, or inspects local installers
+# where they are, and reports each file's type, generator, size and SHA-256.
+# Targets bash 3.2 (macOS) and Git Bash (Windows).
 #
 #   fetch-installer.sh datadir                     prints the tool's local data folder
 #   fetch-installer.sh fetch <server path> [...]   downloads into a new temporary folder
+#   fetch-installer.sh inspect <local path> [...]  inspects local files in place
 #   fetch-installer.sh clean <folder>              deletes a folder `fetch` made
 #
-# `fetch` prints, one line each, tab-separated after the first word:
-#   DIR  <folder>                                  only when at least one file arrived
-#   OK   <server path> <local path> <size> <sha256> <kind> <generator>
-#   FAIL <server path> <reason>
+# `fetch` and `inspect` print, one line each, tab-separated after the first
+# word:
+#   DIR  <folder>                                  `fetch` only, when at least one file arrived
+#   OK   <path> <local path> <size> <sha256> <kind> <generator>
+#   FAIL <path> <reason>
 #   ERROR <reason>                                 nothing could be fetched
+# <path> is the server path for `fetch`, the local path as given for
+# `inspect`; <local path> is the file's native path. `inspect` reads no
+# settings and no credentials, makes no folder, and never copies or changes a
+# file.
 # kind: exe | msi | zip | pkg | dmg | unknown
 # generator: inno | nsis | installshield | wix-burn | wix | msi | none | unknown
-# Exit codes: 0 every file fetched, 1 a file or the setup failed, 2 usage.
+# Exit codes: 0 every file fetched or inspected, 1 a file or the setup failed,
+# 2 usage.
 #
 # The password never reaches a command line or the output: it travels from the
 # secret-store helper's output into a netrc file inside the temporary folder,
@@ -41,7 +49,7 @@ case "$(uname -s)" in
 esac
 
 usage() {
-  echo "usage: fetch-installer.sh datadir | fetch <server path> [...] | clean <folder>" >&2
+  echo "usage: fetch-installer.sh datadir | fetch <server path> [...] | inspect <local path> [...] | clean <folder>" >&2
   exit 2
 }
 
@@ -448,6 +456,27 @@ EOF
   [ $failed -eq 0 ]
 }
 
+cmd_inspect() {
+  [ $# -ge 1 ] || usage
+  local path f failed=0
+  for path in "$@"; do
+    case "$path" in
+      "~/"*) f="$HOME/${path#\~/}" ;;
+      *) f=$(to_unix "$path") ;;
+    esac
+    if [ ! -f "$f" ]; then
+      failed=$((failed + 1))
+      echo "FAIL $path${TAB}No such file"
+    elif [ ! -r "$f" ]; then
+      failed=$((failed + 1))
+      echo "FAIL $path${TAB}The file cannot be read"
+    else
+      echo "OK $path${TAB}$(to_native "$f")${TAB}$(wc -c < "$f" | tr -d ' ')${TAB}$(sha256_of "$f")${TAB}$(detect "$f")"
+    fi
+  done
+  [ $failed -eq 0 ]
+}
+
 [ "$platform" != other ] || fail "this script works only on Windows (Git Bash) and macOS"
 
 action=$1
@@ -455,6 +484,7 @@ action=$1
 case "$action" in
   datadir) [ $# -eq 0 ] || usage; cmd_datadir ;;
   fetch) cmd_fetch "$@" ;;
+  inspect) cmd_inspect "$@" ;;
   clean) cmd_clean "$@" ;;
   *) usage ;;
 esac
