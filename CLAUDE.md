@@ -76,13 +76,13 @@ two talk only through the job file (`job.tsv`, input) and the status file
 
 Use the `catalogue-assistant` Claude Code skill
 (`.claude/skills/catalogue-assistant/`) to propose a new plugin's catalogue
-entry. Place the plugin's installers on the server first, then invoke the
-skill with the plugin name, its vendor and the installers' server paths. It
-writes a draft entry to the catalogue editor's `drafts/` folder
-(`<REAPER resource path>/ReaperPluginManager/drafts/<id>.json`), where the
-editor's Import draft lists it, and reports each field's source and
-confidence; test the fields it marks by hand before publishing from the
-editor. The skill is the maintainer's own aid and not part of the release, so
+entry. Invoke it with the plugin name, its vendor and its installers, each
+the server path of a file already on the server or the absolute path of a
+local file. It writes a draft entry to the catalogue editor's `drafts/`
+folder (`<REAPER resource path>/ReaperPluginManager/drafts/<id>.json`),
+where the editor's Import draft lists it and attaches its local installers,
+which Publish then uploads, and reports each field's source and confidence;
+test the fields it marks by hand before publishing from the editor. The skill is the maintainer's own aid and not part of the release, so
 `README.md` and `server/` do not mention it.
 
 ## Releasing
