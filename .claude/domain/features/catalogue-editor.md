@@ -54,20 +54,24 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
   plugins).
 - **Add by hand** — name, vendor and match strings typed in.
 - **Import draft** — lists the draft entry files in the drafts folder (the
-  assistant's output), validates the chosen one against the catalogue
-  schema and adds it, or merges it into the entry with the same `id` after
-  confirmation; an imported file is then removed from the folder.
+  assistant's output), validates the chosen one against the draft schema
+  (Data and state) and adds it, or merges it into the entry with the same
+  `id` after confirmation; an imported file is then removed from the folder.
+  Each of its installers arrives attached: one naming a server file keeps
+  that path, and one naming a local file is attached exactly as a file
+  picked in the entry form is, with its install options as the draft gives
+  them.
 - **Entry form** — note; per platform, or once as a shared package: the
   installer, type (`script` among the types offered on both platforms),
   silent-install arguments and destination, the last two not applying to a
   `script` installer, whose file is the zip with its install script(s)
   ([plugin-catalogue.md § Data and state](./plugin-catalogue.md#data-and-state));
   the activation method, app per platform, URL and instructions. An
-  installer is either a
-  local file picked from disk — attaching it computes its SHA-256 with OS
-  tools (`certutil`/PowerShell on Windows, `shasum -a 256` on macOS) and
-  assigns its server path — or a file already on the server, as an imported
-  draft names it, kept at its existing path and never uploaded.
+  installer is either a local file, picked from disk or named by an
+  imported draft — attaching it computes its SHA-256 with OS tools
+  (`certutil`/PowerShell on Windows, `shasum -a 256` on macOS) and assigns
+  its server path — or a file already on the server, as an imported draft
+  can name it, kept at its existing path and never uploaded.
 - **Remove** — removes an entry from the draft.
 - **Publish / Discard** — Publish hands the draft to `catalogue-publish`;
   Discard deletes the draft after confirmation.
@@ -83,7 +87,12 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
   package shared by both platforms (named in both `installers` keys). An
   installer already on the server keeps its own path.
 - **Drafts folder** (`drafts/`, local data folder) — draft entry files the
-  catalogue assistant writes; Import draft lists them.
+  catalogue assistant writes; Import draft lists them. A draft entry file is
+  a catalogue holding one entry in the catalogue schema, except that an
+  installer may name a local file instead of a server one: `source`, an
+  absolute path on this machine, in place of `file` and `sha256`, beside its
+  `type`, `args` and `dest`. The same `source` under both `installers` keys
+  is a package shared by both platforms.
 - Source of truth: the draft, until published; then the server catalogue.
 
 ## Interfaces and contracts
@@ -92,8 +101,9 @@ Lua with ReaImGui, per [technical-direction.md](../technical-direction.md).
 - Expects: `plugin-catalogue` (fetch, validate, encode, unmanaged), `plugin-detection`
   (`group_installed`, `norm`), `catalogue-publish.publish(draft)`.
 - Failure contract: an invalid draft entry blocks Publish and is shown
-  inline; a vanished local installer file is flagged on its entry; a failed
-  checksum computation leaves the checksum empty and says so.
+  inline; a vanished local installer file, a draft's `source` missing at
+  import among them, is flagged on its entry; a failed checksum computation
+  leaves the checksum empty and says so.
 
 ## Dependencies
 
