@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperPluginManager" commit="a2e135a0a54f37607e31bc717458d2563c65c74c">
+<index version="1" name="ReaperPluginManager" commit="ad774ff0097d3b9104d81c552ec392984bde372c">
   <category name="Scripts/ReaperPluginManager">
     <reapack name="RPM_Setup.lua" type="script" desc="ReaperPluginManager">
       <metadata>
@@ -134,6 +134,25 @@ cannot write there.]]></changelog>
         <source file="helpers/rpm-run-hidden.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/a2e135a0a54f37607e31bc717458d2563c65c74c/Scripts/ReaperPluginManager/helpers/rpm-run-hidden.ps1</source>
         <source file="helpers/rpm-restart.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/a2e135a0a54f37607e31bc717458d2563c65c74c/Scripts/ReaperPluginManager/helpers/rpm-restart.ps1</source>
         <source file="helpers/rpm-restart.sh">https://github.com/Diebanez/ReaperPluginManager/raw/a2e135a0a54f37607e31bc717458d2563c65c74c/Scripts/ReaperPluginManager/helpers/rpm-restart.sh</source>
+      </version>
+      <version name="1.6.0-beta.1" author="Diebanez" time="2026-10-30T10:27:05Z">
+        <changelog><![CDATA[Catalogue Manager: a draft entry file can name a local installer by its
+path (`source`); Import draft attaches it, computing its checksum, and
+Publish uploads it, so nothing is left to attach by hand.]]></changelog>
+        <source main="main">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/RPM_Setup.lua</source>
+        <source main="main" file="RPM_Watcher.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/RPM_Watcher.lua</source>
+        <source main="main" file="RPM_CheckProject.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/RPM_CheckProject.lua</source>
+        <source main="main" file="RPM_Browse.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/RPM_Browse.lua</source>
+        <source main="main" file="RPM_CatalogueManager.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/RPM_CatalogueManager.lua</source>
+        <source file="rpm_core.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/rpm_core.lua</source>
+        <source file="rpm_reaper.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/rpm_reaper.lua</source>
+        <source file="helpers/rpm-install.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-install.ps1</source>
+        <source file="helpers/rpm-install.sh">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-install.sh</source>
+        <source file="helpers/rpm-secret.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-secret.ps1</source>
+        <source file="helpers/rpm-secret.sh">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-secret.sh</source>
+        <source file="helpers/rpm-run-hidden.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-run-hidden.ps1</source>
+        <source file="helpers/rpm-restart.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-restart.ps1</source>
+        <source file="helpers/rpm-restart.sh">https://github.com/Diebanez/ReaperPluginManager/raw/ad774ff0097d3b9104d81c552ec392984bde372c/Scripts/ReaperPluginManager/helpers/rpm-restart.sh</source>
       </version>
     </reapack>
   </category>
