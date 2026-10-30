@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" name="ReaperPluginManager" commit="989738a7b329fbc4700972b34b353d6c5e554eaa">
+<index version="1" name="ReaperPluginManager" commit="ff50bcddddde8e9d5936d8de13657b2f9424a4f2">
   <category name="Scripts/ReaperPluginManager">
     <reapack name="RPM_Setup.lua" type="script" desc="ReaperPluginManager">
       <metadata>
@@ -95,6 +95,26 @@ projects that were open. Replaces the FX-browser scan of 1.3.0.]]></changelog>
         <source file="helpers/rpm-restart.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/989738a7b329fbc4700972b34b353d6c5e554eaa/Scripts/ReaperPluginManager/helpers/rpm-restart.ps1</source>
         <source file="helpers/rpm-restart.sh">https://github.com/Diebanez/ReaperPluginManager/raw/989738a7b329fbc4700972b34b353d6c5e554eaa/Scripts/ReaperPluginManager/helpers/rpm-restart.sh</source>
       </version>
+      <version name="1.5.0-beta.1" author="Diebanez" time="2026-10-30T09:48:40Z">
+        <changelog><![CDATA[macOS: a disk image holding a vendor app (such as UA Connect or the
+Spitfire Audio app) and no plugin installs that app into /Applications
+silently, asking for the administrator password only when the member
+cannot write there.]]></changelog>
+        <source main="main">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/RPM_Setup.lua</source>
+        <source main="main" file="RPM_Watcher.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/RPM_Watcher.lua</source>
+        <source main="main" file="RPM_CheckProject.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/RPM_CheckProject.lua</source>
+        <source main="main" file="RPM_Browse.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/RPM_Browse.lua</source>
+        <source main="main" file="RPM_CatalogueManager.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/RPM_CatalogueManager.lua</source>
+        <source file="rpm_core.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/rpm_core.lua</source>
+        <source file="rpm_reaper.lua">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/rpm_reaper.lua</source>
+        <source file="helpers/rpm-install.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-install.ps1</source>
+        <source file="helpers/rpm-install.sh">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-install.sh</source>
+        <source file="helpers/rpm-secret.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-secret.ps1</source>
+        <source file="helpers/rpm-secret.sh">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-secret.sh</source>
+        <source file="helpers/rpm-run-hidden.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-run-hidden.ps1</source>
+        <source file="helpers/rpm-restart.ps1">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-restart.ps1</source>
+        <source file="helpers/rpm-restart.sh">https://github.com/Diebanez/ReaperPluginManager/raw/ff50bcddddde8e9d5936d8de13657b2f9424a4f2/Scripts/ReaperPluginManager/helpers/rpm-restart.sh</source>
+      </version>
     </reapack>
   </category>
   <metadata>
@@ -104,6 +124,20 @@ projects that were open. Replaces the FX-browser scan of 1.3.0.]]></changelog>
 
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel0 \b \fs36 ReaperPluginManager\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 ReaperPluginManager keeps a group of REAPER users able to open each other's projects. One maintainer keeps a catalogue of plugin installers on the group's own server. When you open a project that uses plugins you do not have, the manager lists them, installs what the catalogue offers once you agree, and guides you through activating each plugin's licence with your own account. You can also browse the catalogue and install any plugin it offers before a project needs it.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Quick start\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 The group has two roles. The {\b maintainer} sets up the server and keeps the catalogue: which plugins it offers, their installers and how each is activated. {\b Members} check projects and install from it. The maintainer is usually a member too, and does both.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b As a member}, you need three things from your maintainer: the server address, your user name and your password (a shared folder needs no user or password). Then:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Install the manager through ReaPack ({\i Installing} below).\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Run {\i Script: RPM_Setup.lua} and enter what the maintainer gave you ({\i Setup} below). Its last line should read "Connection succeeded".\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Open a project. When it uses plugins you do not have, a window lists them; press {\b Install N plugins}, then let REAPER restart. To install a plugin before a project needs it, run {\i Script: RPM_Browse.lua}.\sa180\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 {\b As the maintainer}:\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab Choose and set up the server \u8212- a shared cloud folder, your own server or FTP hosting \u8212- as the {\field{\*\fldinst{HYPERLINK "https://github.com/Diebanez/ReaperPluginManager/blob/master/server/README.md"}}{\fldrslt{\ul
+server setup guide
+}}}
+ describes, with an account for you that can write and one for each member that can only read.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 2.\tx360\tab Install the manager and the ReaImGui extension ({\i For the maintainer} below), and run {\i Script: RPM_Setup.lua} with your own account.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 3.\tx360\tab Run {\i Script: RPM_CatalogueManager.lua}, add the plugins with {\b Add from installed}, attach each one's installers, and press {\b Publish}.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 4.\tx360\tab Send each member their address, user name and password, and a link to this guide.\sa180\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel1 \b \fs32 Installing\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 The manager needs REAPER 7 or later on Windows 10/11 or macOS; on any other system it does nothing. Members and the maintainer install it the same way, through ReaPack, REAPER's package manager:\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 1.\tx360\tab If REAPER has no {\i Extensions > ReaPack} menu, install ReaPack first, as {\field{\*\fldinst{HYPERLINK "https://reapack.com"}}{\fldrslt{\ul
@@ -117,9 +151,11 @@ reapack.com
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Updating and removing\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 Updates arrive through ReaPack's package synchronisation ({\i Extensions > ReaPack > Synchronize packages}); there is nothing to download by hand.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 To remove the manager, uninstall the ReaperPluginManager package in {\i Extensions > ReaPack > Browse packages}. ReaPack removes the scripts but leaves Setup's block in REAPER's {\f1 Scripts/__startup.lua}: delete it by hand, from the {\f1 -- >>> ReaperPluginManager} line to the {\f1 -- <<< ReaperPluginManager} line ({\i What Setup does} below).\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 Beta versions\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 New versions can be published as betas first, such as {\f1 1.5.0-beta.1}, so they can be tried before everyone gets them. ReaPack installs betas only where you ask for them: in {\i Extensions > ReaPack > Browse packages}, right-click the ReaperPluginManager package and choose {\i Enable pre-releases (bleeding-edge)}, then synchronise. Choose it again to stop: you stay on the beta you have until the next stable version, which replaces it.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 For the maintainer\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 The {\i Script: RPM_CatalogueManager.lua} action also needs the ReaImGui extension, which ReaPack cannot install as a dependency of this package. Install it yourself from {\i Extensions > ReaPack > Browse packages}, searching for ReaImGui (it comes from the ReaTeam Extensions repository, which ReaPack includes by default), and restart REAPER.\par}
-{\pard \ql \f0 \sa180 \li0 \fi0 The ReaPack package carries only the scripts and their helpers. The server setup guide and the example catalogue are in the repository's {\field{\*\fldinst{HYPERLINK "https://github.com/Diebanez/ReaperPluginManager/tree/master/server"}}{\fldrslt{\ul
+{\pard \ql \f0 \sa180 \li0 \fi0 The ReaPack package carries only the scripts and their helpers. The server setup guide, the server setup script and the example catalogue are in the repository's {\field{\*\fldinst{HYPERLINK "https://github.com/Diebanez/ReaperPluginManager/tree/master/server"}}{\fldrslt{\ul
 {\f1 server/} folder
 }}}
 .\par}
@@ -127,8 +163,8 @@ reapack.com
 {\pard \ql \f0 \sa180 \li0 \fi0 Setup asks for the server connection in one dialog, saves it, and puts the manager to work. It refuses to run on a REAPER older than version 7 ("REAPER 7 or later is required.") and on systems other than Windows and macOS.\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 \outlinelevel2 \b \fs28 The dialog\par}
 {\pard \ql \f0 \sa180 \li0 \fi0 The dialog proposes the current values; the password field always starts empty.\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Server URL} \u8212- the server address, starting with its scheme, such as {\f1 ftps://example.com/plugins/}; a missing final {\f1 /} is added. An address with no scheme is refused, and the dialog opens again.\par}
-{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b User} \u8212- the server account's user name. Leave it empty to connect anonymously; any stored password is then removed.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Server URL} \u8212- the server address, starting with its scheme, such as {\f1 https://plugins.example.com/rpm/}, {\f1 ftps://example.com/plugins/} or, for a shared folder, its path on your computer: {\f1 file:///C:/Users/anna/Dropbox/RPM/}. A missing final {\f1 /} is added. An address with no scheme is refused, and the dialog opens again.\par}
+{\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b User} \u8212- the server account's user name. Leave it empty to connect anonymously, as for a shared folder; any stored password is then removed.\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Password} \u8212- masked as you type. Left empty with the same user, the stored password is kept. A password with spaces, tabs or line breaks is refused, and the dialog opens again with the other values kept. Where the password is kept is described under {\i The server password}.\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b TLS} \u8212- {\f1 required}, {\f1 try} or {\f1 off}, as the {\f1 tls} key in {\i Settings} describes; any other value becomes {\f1 required}.\par}
 {\pard \ql \f0 \sa0 \li360 \fi-360 \bullet \tx360\tab {\b Automatic check} \u8212- {\f1 yes} checks every project when it is opened; {\f1 no} (or {\f1 n}, {\f1 0}, {\f1 false}, {\f1 off}) checks only on demand. Any other value counts as {\f1 yes}.\sa180\par}
